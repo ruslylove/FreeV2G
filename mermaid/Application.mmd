@@ -1,0 +1,15 @@
+graph TD
+    A[Start] --> B{Parse Command-Line Arguments};
+    B --> C{Mode == 'ev' ?};
+    C -- Yes --> D[Initialize EV object<br/>from Ev.py];
+    D --> E[Load EV configuration<br/>from ev.json];
+    E --> F[Run EV main loop<br/>ev.loop];
+    F --> G[End];
+    
+    C -- No --> H{Mode == 'evse' ?};
+    H -- Yes --> I[Initialize EVSE object<br/>from Evse.py];
+    I --> J[Run EVSE main loop<br/>evse.loop];
+    J --> G;
+
+    H -- No --> K[Show Error / Help];
+    K --> G;

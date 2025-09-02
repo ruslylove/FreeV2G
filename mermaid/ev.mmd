@@ -1,0 +1,26 @@
+stateDiagram-v2
+    direction TB
+    [*] --> sessionStarting: เริ่ม Session (v2gStartSession)
+
+    sessionStarting --> sessionStared: ได้รับ SessionStarted (0xC0)
+    
+    state if_dc_charging <<choice>>
+    sessionStared --> if_dc_charging: ตรวจสอบโหมดชาร์จ
+    if_dc_charging --> cableCheckReady : DC
+    if_dc_charging --> chargingReady : AC
+
+    cableCheckReady --> cableCheckStarted: EV สั่ง v2gStartCableCheck()
+    cableCheckStarted --> cableCheckFinished: ได้รับ CableCheckFinished (0xC5)
+    cableCheckFinished --> preChargingReady: ได้รับ PreChargingReady (0xC6)
+    preChargingReady --> preChargingStarted: EV สั่ง v2gStartPreCharging()
+    preChargingStarted --> chargingReady: ได้รับ ChargingReady (0xC7)
+
+    chargingReady --> waitChargingStarted: เงื่อนไขพร้อม, EV สั่ง v2gStartCharging()
+    waitChargingStarted --> chargingStarted: ได้รับ ChargingStarted (0xC8)
+    
+    chargingStarted --> chargingStarted: อัปเดตสถานะแบตเตอรี่
+    chargingStarted --> chargingStopped: แบตเตอรี่เต็ม หรือ ได้รับ ChargingStopped (0xC9)
+
+    chargingStopped --> waitSessionStopped: EV สั่ง v2gStopSession()
+    waitSessionStopped --> sessionStopped: ได้รับ SessionStopped (0xCB)
+    sessionStopped --> [*]: จบ Session (state="end")

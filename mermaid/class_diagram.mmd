@@ -1,0 +1,91 @@
+classDiagram
+    direction TB
+    title FreeV2G Class Diagram
+
+    class Ev {
+        +state: string
+        +config: dict
+        +battery: Battery
+        +whitebeet: Whitebeet
+        +logger: Logger
+        +loop()
+        +_initialize()
+        +_handleNetworkEstablished()
+        +_handleSessionStarted(data)
+    }
+
+    class Battery {
+        - _capacity: int
+        - _level: int
+        - _soc: int
+        + is_charging: bool
+        + getSOC(): int
+        + tickSimulation(): bool
+    }
+
+    class Logger {
+        + fileName: string
+        + log(logString)
+    }
+
+    class Whitebeet {
+        <<Inferred>>
+        + version: string
+        + v2gSetMode(mode)
+        + v2gStartSession()
+        + v2gEvReceiveRequest(): tuple
+        + v2gEvParseSessionStarted(data): dict
+    }
+
+    class FramingInterface {
+        + sut_adapter: SUTAdapter
+        + initialize_framing(if_type, if_name, mac)
+        + receive_next_frame(): Frame
+        + build_and_send_frame(module_id, sub_id, payload)
+    }
+
+    class Frame {
+        + mod_id: int
+        + sub_id: int
+        + payload: bytes
+    }
+
+    class SUTAdapter {
+        <<Abstract>>
+        + sut_interface: string
+        + start()
+        + stop()
+        + send(data)
+        + receive(): bytes
+    }
+
+    class EthernetAdapter {
+        + dut_mac: string
+        + start()
+        + stop()
+        + send(data)
+        + receive(): bytes
+    }
+
+    class SpiAdapter {
+        + spi: spidev
+        + start()
+        + stop()
+        + send(data)
+        + receive(): bytes
+    }
+
+    %% --- Relationships ---
+
+    Ev "1" o-- "1" Battery : has a
+    Ev "1" o-- "1" Whitebeet : has a
+    Ev "1" o-- "1" Logger : has a
+
+    %% Inferred relationship based on software stack
+    Whitebeet "1" o-- "1" FramingInterface : uses
+
+    FramingInterface "1" o-- "1" SUTAdapter : uses
+    FramingInterface ..> Frame : creates/uses
+
+    SUTAdapter <|-- EthernetAdapter : is a
+    SUTAdapter <|-- SpiAdapter : is a

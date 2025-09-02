@@ -1,0 +1,49 @@
+sequenceDiagram
+    participant EV as รถยนต์ไฟฟ้า (EV)
+    participant EVSE as สถานีชาร์จ (EVSE)
+
+    rect rgb(230, 230, 230)
+        Note over EV, EVSE: 1. Physical Connection & SLAC Matching
+        EVSE->>EV: EV เสียบสายชาร์จ (CP State B)
+        EVSE->>EV: เริ่มกระบวนการ SLAC (PLC Pairing)
+        Note over EV, EVSE: สร้างเครือข่าย IP สำเร็จ
+    end
+
+    Note over EV, EVSE: 2. V2G Session Setup
+    EV->>EVSE: SessionSetupReq (ขอเริ่ม Session)
+    EVSE-->>EV: SessionSetupRes (ตอบรับ, ส่ง Session ID)
+
+    Note over EV, EVSE: 3. Authorization
+    EV->>EVSE: AuthorizationReq (ขอการยืนยันตัวตน)
+    EVSE-->>EV: AuthorizationRes (อนุญาตการชาร์จ)
+
+    Note over EV, EVSE: 4. Charge Parameter Discovery
+    EV->>EVSE: ChargeParameterDiscoveryReq (ส่งข้อมูลฝั่ง EV)
+    EVSE-->>EV: ChargeParameterDiscoveryRes (ส่งตารางชาร์จ/ขีดจำกัด)
+
+    opt DC Charging Steps
+        Note over EV, EVSE: 5. Cable Check (สำหรับ DC)
+        EVSE->>EV: CableCheckReq (พร้อมตรวจสอบสาย)
+        EV->>EVSE: CableCheckRes (เริ่มตรวจสอบ)
+
+        Note over EV, EVSE: 6. Pre-Charging (สำหรับ DC)
+        EVSE->>EV: PreChargeReq (พร้อม Pre-charge)
+        EV->>EVSE: PreChargeRes (เริ่ม Pre-charge)
+    end
+
+    Note over EV, EVSE: 7. Charging
+    EVSE->>EV: PowerDeliveryReq (พร้อมจ่ายไฟ)
+    EV->>EVSE: PowerDeliveryRes (สั่งเริ่มชาร์จ)
+
+    loop Charge Loop
+        EV->>EVSE: ChargingStatusReq (อัปเดต SOC, ขอแรงดัน/กระแส)
+        EVSE-->>EV: ChargingStatusRes (ตอบรับ, ส่งสถานะปัจจุบัน)
+    end
+
+    Note over EV, EVSE: 8. Stopping Charge
+    EV->>EVSE: PowerDeliveryReq (สั่งหยุดชาร์จ)
+    EVSE-->>EV: PowerDeliveryRes (รับทราบ, หยุดจ่ายไฟ)
+
+    Note over EV, EVSE: 9. Session Stop
+    EV->>EVSE: SessionStopReq (ขอจบ Session)
+    EVSE-->>EV: SessionStopRes (จบ Session)

@@ -1,0 +1,30 @@
+stateDiagram-v2
+    direction TB
+    [*] --> WaitingForConnection: EVSE เริ่มทำงาน, รอรถมาเสียบ
+
+    WaitingForConnection --> SlacMatching: EV เชื่อมต่อ (CP State B)
+    SlacMatching --> ListeningForRequests: SLAC สำเร็จ, เข้าสู่ Loop รอรับคำสั่ง
+
+    state ListeningForRequests {
+        direction TB
+        [*] --> SessionSetup
+        SessionSetup --> Authorization: ได้รับ SessionStarted (0x80)
+        Authorization --> ParameterExchange: ได้รับ RequestAuthorization (0x82)
+        ParameterExchange --> CableCheck: ได้รับ RequestSchedules (0x84), EnergyTransferModeSelected (0x83)
+        
+        state if_dc_charging <<choice>>
+        CableCheck --> if_dc_charging: ได้รับ RequestCableCheck (0x87)
+        if_dc_charging --> PreCharging : DC
+        if_dc_charging --> StartCharging : AC
+
+        PreCharging --> StartCharging: ได้รับ PreChargeStarted (0x88)
+        StartCharging --> Charging: ได้รับ RequestStartCharging (0x89)
+    }
+
+    ListeningForRequests --> Charging
+
+    Charging --> Charging: อยู่ใน Charge Loop (รับ/ส่ง ChargeParamsChanged 0x85/0x86)
+    Charging --> Stopping: ได้รับ RequestStopCharging (0x8A)
+    
+    Stopping --> SessionStopped: ได้รับ SessionStopped (0x8C)
+    SessionStopped --> [*]: จบ Session, ออกจาก Loop

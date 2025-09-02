@@ -1,0 +1,28 @@
+graph TD
+    subgraph "Application Layer (ตรรกะระดับสูง)"
+        A["<b>Ev.py / Evse.py</b><br/>ควบคุม State Machine และลำดับขั้นตอนการชาร์จ"]
+    end
+
+    subgraph "API / Driver Layer (ตัวกลาง)"
+        B["<b>Whitebeet.py</b><br/>แปลงคำสั่งระดับสูงเป็นคำสั่งสำหรับฮาร์ดแวร์<br/>(e.g., v2gStartSession)"]
+    end
+
+    subgraph "Framing & Transport Layer (การสื่อสารระดับล่าง)"
+        C["<b>FramingInterface.py</b><br/>สร้าง/อ่านเฟรมข้อมูลดิบ (HCI Protocol)"]
+        D["<b>EthernetAdapter.py / SpiAdapter.py</b><br/>จัดการการรับ-ส่งข้อมูลผ่านสายสัญญาณ"]
+    end
+
+    subgraph "Hardware Layer (อุปกรณ์)"
+        E["<b>WHITE-beet Module</b><br/>ฮาร์ดแวร์โมดูลสื่อสาร"]
+    end
+
+    A -- "1. เรียกใช้ฟังก์ชันระดับสูง" --> B
+    B -- "2. สร้างเฟรมข้อมูลตามโปรโตคอล" --> C
+    C -- "3. ส่งเฟรมข้อมูลดิบ" --> D
+    D -- "4. สื่อสารผ่านสาย Ethernet/SPI" --> E
+
+    style A fill:#cde4ff,stroke:#333,stroke-width:2px
+    style B fill:#e6ffc2,stroke:#333,stroke-width:2px
+    style C fill:#fff2c2,stroke:#333,stroke-width:2px
+    style D fill:#fff2c2,stroke:#333,stroke-width:2px
+    style E fill:#f0f0f0,stroke:#333,stroke-width:2px
