@@ -1,0 +1,39 @@
+flowchart LR
+
+    subgraph Our Charger
+    Charger
+    
+    subgraph WHITE beet EVSE
+        direction TB
+        SECC
+    end
+    
+
+    subgraph Computer1/BeagleBone/RaspberryPi*
+        direction TB
+        CA
+    end
+
+    CA <--> HMI
+
+    end
+
+    subgraph EV Simulator
+
+    subgraph WHITE beet EV
+        direction TB
+        EVCC
+    end
+
+    subgraph Computer2*
+        direction TB
+        EV
+    end
+
+    end
+
+
+    Charger <-- CAN --> CA[Controller/Adaptor] <-->|Ethernet/SPI| SECC <-->|co pilot| EVCC <-->|Ethernet| EV["EV Simulator Software"]
+    direction TB
+    
+  
