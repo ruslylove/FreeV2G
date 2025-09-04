@@ -1,0 +1,126 @@
+@startuml
+' skinparam linetype ortho
+!theme vibrant
+
+title Class Diagram for FreeV2G Project (EV and EVSE)
+
+package "EV Application" {
+    class Ev {
+        - logger: Logger
+        - whitebeet: Whitebeet
+        - battery: Battery
+        - state: String
+        + config: dict
+        + loop()
+        - _initialize()
+        - _handleEvseConnected()
+        - _handleNetworkEstablished()
+        - _handleScheduleReceived(data)
+    }
+
+    class Battery {
+        - _capacity: int
+        - _level: int
+        - _soc: int
+        + is_charging: bool
+        + getCapacity(): int
+        + getSOC(): int
+        + tickSimulation(): bool
+    }
+
+    class Logger {
+        - fileName: string
+        + log(logString)
+    }
+}
+
+package "EVSE Application" {
+    class Evse {
+        - whitebeet: Whitebeet
+        - charger: Charger
+        - schedule: dict
+        - charging: bool
+        + loop()
+        - _initialize()
+        - _handleEvConnected()
+        - _handleNetworkEstablished()
+        - _handleRequestSchedules(data)
+    }
+
+    class Charger {
+        + getEvseMinVoltage(): int
+        + getEvseMaxVoltage(): int
+        + getEvsePresentVoltage(): int
+        + ...
+    }
+}
+
+package "V2G Driver" {
+    class Whitebeet {
+        - framing_interface: FramingInterface
+        + version: string
+        + controlPilotSetMode(mode)
+        + slacStart(mode)
+        + v2gSetMode(mode)
+        + v2gStartSession()
+        + v2gEvReceiveRequest()
+        + v2gEvseStartListen()
+        + ...
+    }
+}
+
+package "Communication Layer" {
+    class FramingInterface {
+        - sut_adapter: SUTAdapter
+        + initialize_framing(if_type, if_name, mac)
+        + send_frame_and_get_answer(...)
+        + receive_next_frame(...)
+    }
+
+    class Frame {
+        + mod_id: int
+        + sub_id: int
+        + req_id: int
+        + payload: bytes
+        + crc: int
+    }
+}
+
+package "Hardware Abstraction Layer" {
+    abstract class SUTAdapter {
+        + receive()
+        + send(data)
+        + stop()
+        + holding_data()
+        # pack_and_parse_frame(binary_string): Frame
+    }
+
+    class EthernetAdapter extends SUTAdapter {
+        - recv_process: Process
+        - queue_rx: Queue
+        - queue_tx: Queue
+        + start()
+    }
+
+    class SpiAdapter extends SUTAdapter {
+        - spiadapter_process: Process
+        - queue_rx: Queue
+        - queue_tx: Queue
+        + start()
+    }
+}
+
+' Relationships
+Ev *-- "1" Logger
+Ev *-- "1" Whitebeet
+Ev *-- "1" Battery
+
+Evse *-- "1" Whitebeet
+Evse *-- "1" Charger
+
+Whitebeet *-- "1" FramingInterface
+
+FramingInterface o-- "1" SUTAdapter
+SUTAdapter ..> Frame : creates
+
+@enduml
