@@ -1,6 +1,6 @@
 flowchart LR
 
-    subgraph Our Charger
+    subgraph EVSE 
     Charger
     
     subgraph WHITE beet EVSE
@@ -9,31 +9,41 @@ flowchart LR
     end
     
 
-    subgraph Computer1/BeagleBone/RaspberryPi*
+    subgraph Com/BB/RaspPi
         direction TB
         CA
     end
 
+    CT1[CAN<br>Transceiver]
+
     CA <--> HMI
+    CA <--> CT1
 
     end
 
-    subgraph EV Simulator
+    subgraph EVS["EV (Simulator)"]
 
     subgraph WHITE beet EV
         direction TB
         EVCC
     end
 
-    subgraph Computer2*
+   
+
+
+    subgraph Computer2
         direction TB
         EV
     end
 
+        CT2[CAN<br>Transceiver]
+
+
     end
 
 
-    Charger <-- CAN --> CA[Controller/Adaptor] <-->|Ethernet/SPI| SECC <-->|co pilot| EVCC <-->|Ethernet| EV["EV Simulator Software"]
+    Charger["Power Module"] <-- CAN2.0B --> CA[Controller] <-->|Ethernet/SPI| SECC <-->|"HomePlug Green PHY (PLC) over cp (CSS)"| EVCC <-->|Ethernet/SPI| EV["EV Simulator Software"]
+    CT1 <-- CAN over CAN-H & CAN-L (CHAdeMO) --> CT2 <--> EV
     direction TB
     
   
