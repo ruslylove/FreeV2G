@@ -1,0 +1,66 @@
+graph TD
+    subgraph Initialization
+        A[Start] --> B(Initialize EV);
+        B --> C{EVSE Connected?};
+    end
+
+    subgraph SLAC Process
+        C -- No --> D[Wait for EVSE Connection];
+        D --> C;
+        C -- Yes --> E[Start SLAC Matching];
+        E --> F{SLAC Matched?};
+        F -- No --> G[SLAC Failed - End];
+        F -- Yes --> H[Network Established];
+    end
+
+    subgraph V2G Communication
+        H --> I[Start V2G Session];
+        I -- SessionStarted --> J(Session Started);
+        J -- ScheduleReceived --> K(Schedule Received);
+        K -- CableCheckReady --> L(Cable Check Ready);
+        L --> M[Start Cable Check];
+        M -- CableCheckFinished --> N(Cable Check Finished);
+        N -- PreChargingReady --> O(Pre-Charging Ready);
+        O --> P[Start Pre-Charging];
+        P -- ChargingReady --> Q(Charging Ready);
+    end
+
+    subgraph Charging
+        Q --> R{Start Conditions Met?};
+        R -- Yes --> S[Start Charging];
+        R -- No --> Q;
+        S -- ChargingStarted --> T[Charging Active];
+        T -- SOC < 100% --> T;
+        T -- SOC >= 100% --> U[Stop Charging];
+        T -- EVSE Stops --> U;
+    end
+
+    subgraph Teardown
+        U -- ChargingStopped --> V(Charging Stopped);
+        V --> W[Stop Session];
+        W -- SessionStopped --> X(Session Stopped);
+        W -- SessionError --> Y[Session Error - End];
+        X --> Z[End];
+    end
+
+    style B fill:#cde4ff,stroke:#333,stroke-width:2px
+    style D fill:#cde4ff,stroke:#333,stroke-width:2px
+    style E fill:#cde4ff,stroke:#333,stroke-width:2px
+    style H fill:#cde4ff,stroke:#333,stroke-width:2px
+    style I fill:#cde4ff,stroke:#333,stroke-width:2px
+    style J fill:#cde4ff,stroke:#333,stroke-width:2px
+    style K fill:#cde4ff,stroke:#333,stroke-width:2px
+    style L fill:#cde4ff,stroke:#333,stroke-width:2px
+    style M fill:#cde4ff,stroke:#333,stroke-width:2px
+    style N fill:#cde4ff,stroke:#333,stroke-width:2px
+    style O fill:#cde4ff,stroke:#333,stroke-width:2px
+    style P fill:#cde4ff,stroke:#333,stroke-width:2px
+    style Q fill:#cde4ff,stroke:#333,stroke-width:2px
+    style S fill:#cde4ff,stroke:#333,stroke-width:2px
+    style T fill:#90ee90,stroke:#333,stroke-width:2px
+    style U fill:#ffcccb,stroke:#333,stroke-width:2px
+    style V fill:#ffcccb,stroke:#333,stroke-width:2px
+    style W fill:#ffcccb,stroke:#333,stroke-width:2px
+    style X fill:#ffcccb,stroke:#333,stroke-width:2px
+    style G fill:#ff6961,stroke:#333,stroke-width:2px
+    style Y fill:#ff6961,stroke:#333,stroke-width:2px

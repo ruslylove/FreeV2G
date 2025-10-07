@@ -1,0 +1,63 @@
+graph TD
+    subgraph Initialization
+        A[Start] --> B(Initialize EVSE);
+        B --> C{EV Connected?};
+    end
+
+    subgraph SLAC Process
+        C -- No --> D[Wait for EV Connection];
+        D --> C;
+        C -- Yes --> E[Start SLAC Matching];
+        E --> F{SLAC Matched?};
+        F -- No --> G[SLAC Failed - End];
+        F -- Yes --> H[Network Established];
+    end
+
+    subgraph V2G Communication
+        H --> I[V2G Listening];
+        I --> J{V2G Message Received};
+        J -- SessionStarted --> K[Session Started];
+        K --> J;
+        J -- RequestAuthorization --> L[Authorize EV];
+        L --> J;
+        J -- EnergyTransferModeSelected --> M[Charging Parameters Exchanged];
+        M --> J;
+        J -- RequestSchedules --> N[Send Schedules];
+        N --> J;
+        J -- RequestCableCheck --> O[Cable Check];
+        O --> J;
+        J -- PreChargeStarted --> P[Pre-Charging];
+        P --> J;
+        J -- RequestStartCharging --> Q[Start Charging];
+    end
+
+    subgraph Charging
+        Q --> R[Charging Active];
+        R -- DC/AC Params Changed --> R;
+        R -- RequestStopCharging --> S[Stop Charging];
+    end
+
+    subgraph Teardown
+        S --> T[Session Stopped];
+        T --> U[End];
+        J -- SessionStopped --> T;
+        J -- SessionError --> V[Session Error - End];
+    end
+
+    style B fill:#cde4ff,stroke:#333,stroke-width:2px
+    style D fill:#cde4ff,stroke:#333,stroke-width:2px
+    style E fill:#cde4ff,stroke:#333,stroke-width:2px
+    style H fill:#cde4ff,stroke:#333,stroke-width:2px
+    style I fill:#cde4ff,stroke:#333,stroke-width:2px
+    style K fill:#cde4ff,stroke:#333,stroke-width:2px
+    style L fill:#cde4ff,stroke:#333,stroke-width:2px
+    style M fill:#cde4ff,stroke:#333,stroke-width:2px
+    style N fill:#cde4ff,stroke:#333,stroke-width:2px
+    style O fill:#cde4ff,stroke:#333,stroke-width:2px
+    style P fill:#cde4ff,stroke:#333,stroke-width:2px
+    style Q fill:#cde4ff,stroke:#333,stroke-width:2px
+    style R fill:#90ee90,stroke:#333,stroke-width:2px
+    style S fill:#ffcccb,stroke:#333,stroke-width:2px
+    style T fill:#ffcccb,stroke:#333,stroke-width:2px
+    style G fill:#ff6961,stroke:#333,stroke-width:2px
+    style V fill:#ff6961,stroke:#333,stroke-width:2px

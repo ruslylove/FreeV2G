@@ -19,6 +19,8 @@ flowchart LR
     CA <--> HMI
     CA <--> CT1
 
+    CSMS <-- OCPP --> CA
+
     end
 
     subgraph EVS["EV (Simulator)"]
@@ -42,7 +44,7 @@ flowchart LR
     end
 
 
-    Charger["Power Module"] <-- CAN2.0B --> CA[Controller] <-->|Ethernet/SPI| SECC <-->|"HomePlug Green PHY (PLC) over cp (CSS)"| EVCC <-->|Ethernet/SPI| EV["EV Simulator Software"]
+    Charger["Power Module"] <-- CAN2.0B --> CA[Main<br>Controller] <-->|Ethernet/SPI| SECC <-->|"HomePlug Green PHY (PLC) over cp (CSS)"| EVCC <-->|Ethernet/SPI| EV["EV Simulator Software"]
     CT1 <-- CAN over CAN-H & CAN-L (CHAdeMO) --> CT2 <--> EV
     direction TB
     
