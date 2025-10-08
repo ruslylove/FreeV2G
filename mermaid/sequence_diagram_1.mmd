@@ -1,0 +1,18 @@
+sequenceDiagram
+    participant EVSE
+    participant EV
+
+    rect rgb(240, 240, 240)
+        note over EVSE, EV: 1. Physical Connection & State Detection
+        EVSE->>EVSE: Initialize (Set CP Mode, Start CP Service, Start SLAC)
+        EV->>EV: Initialize (Set CP Mode, Start CP Service, Set State B, Start SLAC)
+        
+        note over EVSE: EVSE sets 100% duty cycle (State A)
+        EVSE->>EV: Control Pilot (CP) Signal (State A)
+        
+        note over EV: EV connects, transitions to State B
+        EV->>EVSE: CP State Change (State B)
+        
+        EVSE->>EVSE: _waitEvConnected(): Detects State B
+        note over EVSE, EV: EV is connected
+    end

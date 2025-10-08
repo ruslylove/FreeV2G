@@ -1,0 +1,49 @@
+sequenceDiagram
+    participant EVSE
+    participant EV
+
+    
+
+    rect rgb(230, 250, 230)
+
+        
+        EV->>EVSE: ChargeParameterDiscoveryReq
+        EVSE->>EV: ChargeParameterDiscoveryRes
+        
+        EVSE->>EVSE: _handleEnergyTransferModeSelected()
+        EV->>EV: _handleScheduleReceived()
+        
+        alt DC Charging
+            EV->>EVSE: CableCheckReq
+            EVSE->>EV: CableCheckRes
+            EVSE->>EVSE: _handleRequestCableCheck()
+            EV->>EV: _handleCableCheckFinished()
+            
+            EV->>EVSE: PreChargeReq
+            EVSE->>EV: PreChargeRes
+            EVSE->>EVSE: _handlePreChargeStarted()
+            EV->>EV: _handlePreChargingReady()
+        end
+
+        EV->>EVSE: PowerDeliveryReq (Start Charging)
+        EVSE->>EV: PowerDeliveryRes
+        EVSE->>EVSE: _handleRequestStartCharging()
+        EV->>EV: _handleChargingStarted()
+        
+        loop Charging Loop
+            EV->>EVSE: CurrentDemandReq
+            EVSE->>EV: CurrentDemandRes
+            EVSE->>EVSE: _handleDCChargeParametersChanged()
+            EV->>EV: _handleDCChargeParametersChanged()
+        end
+        
+        EV->>EVSE: PowerDeliveryReq (Stop Charging)
+        EVSE->>EV: PowerDeliveryRes
+        EVSE->>EVSE: _handleRequestStopCharging()
+        EV->>EV: _handleChargingStopped()
+        
+        EV->>EVSE: SessionStopReq
+        EVSE->>EV: SessionStopRes
+        EVSE->>EVSE: _handleSessionStopped()
+        EV->>EV: _handleSessionStopped()
+    end

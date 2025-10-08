@@ -1,0 +1,20 @@
+sequenceDiagram
+    participant EVSE
+    participant EV
+
+
+    rect rgb(230, 230, 250)
+        note over EVSE, EV: 2. SLAC (Signal Level Attenuation Characterization)
+        EVSE->>EVSE: _handleEvConnected(): slacStartMatching()
+        EVSE->>EV: Set CP Duty Cycle to 5%
+        
+        EV->>EV: _waitEvseConnected(): Detects 5% duty cycle
+        EV->>EVSE: SLAC Association Request
+        EVSE->>EV: SLAC Association Response
+        
+        EVSE->>EVSE: slacMatched() -> Success
+        EV->>EV: slacMatched() -> Success
+        note over EVSE, EV: PLC Network Established
+    end
+
+    

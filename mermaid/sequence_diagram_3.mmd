@@ -1,0 +1,30 @@
+sequenceDiagram
+    participant EVSE
+    participant EV
+
+    
+
+    rect rgb(230, 250, 230)
+        note over EVSE, EV: 3. V2G High-Level Communication (ISO 15118)
+        EVSE->>EVSE: _handleNetworkEstablished(): Start V2G Listen
+        EV->>EV: _handleNetworkEstablished(): Start V2G Session
+        
+        EV->>EVSE: SessionSetupReq
+        EVSE->>EV: SessionSetupRes
+        
+        EVSE->>EVSE: _handleSessionStarted()
+        EV->>EV: _handleSessionStarted()
+        
+        EV->>EVSE: ServiceDiscoveryReq
+        EVSE->>EV: ServiceDiscoveryRes
+        
+        EV->>EVSE: PaymentServiceSelectionReq
+        EVSE->>EV: PaymentServiceSelectionRes
+        
+        EV->>EVSE: AuthorizationReq
+        EVSE->>EVSE: _handleRequestAuthorization()
+        note over EVSE: User authorizes via input
+        EVSE->>EV: AuthorizationRes (Authorized)
+        
+        
+    end
