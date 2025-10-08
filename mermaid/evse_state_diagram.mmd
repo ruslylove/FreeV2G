@@ -1,0 +1,31 @@
+---
+title: EVSE State Diagram
+---
+stateDiagram-v2
+
+    [*] --> NotConnected: Power On
+    NotConnected --> SlacMatching: EV Connected (State B)
+    SlacMatching --> V2GSession: SLAC Matched
+    V2GSession --> NotConnected: Session Stopped / Error
+
+    state V2GSession {
+        [*] --> Listening: v2gEvseStartListen()
+        Listening --> SessionStarted: on(SessionStarted)
+        SessionStarted --> PaymentSelected: on(PaymentSelected)
+        PaymentSelected --> Authorizing: on(RequestAuthorization)
+        Authorizing --> Authorized: v2gEvseSetAuthorizationStatus(True)
+        Authorized --> EnergyTransferModeSelected: on(EnergyTransferModeSelected)
+        EnergyTransferModeSelected --> SchedulesRequested: on(RequestSchedules)
+        SchedulesRequested --> ReadyToCharge: v2gEvseSetSchedules()
+
+        state ReadyToCharge {
+            [*] --> CableCheck: on(RequestCableCheck)
+            CableCheck --> PreCharging: on(PreChargeStarted)
+            PreCharging --> Charging: on(RequestStartCharging)
+        }
+
+        ReadyToCharge --> Charging
+        Charging --> Charging: on(DC/ACChargeParametersChanged)
+        Charging --> SessionStopped: on(RequestStopCharging)
+        SessionStopped --> [*]: on(SessionStopped)
+    }

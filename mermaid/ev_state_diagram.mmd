@@ -1,0 +1,45 @@
+---
+title: EV State Diagram
+---
+stateDiagram-v2
+
+
+    [*] --> NotConnected: Power On
+    NotConnected --> SlacMatching: EVSE Connected (State B)
+    SlacMatching --> V2GSession: SLAC Matched
+    V2GSession --> NotConnected: Session Stopped / Error
+
+    state V2GSession {
+        [*] --> SessionStarting: v2gStartSession()
+        SessionStarting --> SessionStarted: on(SessionStarted)
+        SessionStarted --> ChargingSetup: (Automatic)
+
+        state ChargingSetup {
+            [*] --> ScheduleReceived: on(ScheduleReceived)
+            ScheduleReceived --> ChargingReady: on(ChargingReady)
+
+            state "DC Charging" as DCCharging {
+                [*] --> CableCheckReady: on(CableCheckReady)
+                CableCheckReady --> CableCheckStarted: v2gStartCableCheck()
+                CableCheckStarted --> CableCheckFinished: on(CableCheckFinished)
+                CableCheckFinished --> PreChargingReady: on(PreChargingReady)
+                PreChargingReady --> PreChargingStarted: v2gStartPreCharging()
+                PreChargingStarted --> ChargingReady: on(ChargingReady)
+            }
+
+            state "AC Charging" as ACCharging {
+                [*] --> ChargingReady: on(ChargingReady)
+            }
+        }
+
+        ChargingSetup --> Charging: v2gStartCharging()
+        Charging --> Charging: on(DC/ACChargeParametersChanged)
+        Charging --> ChargingStopped: v2gStopCharging() / on(ChargingStopped)
+        ChargingStopped --> PostCharging: (Automatic)
+
+        state PostCharging {
+            [*] --> PostChargingReady: on(PostChargingReady)
+            PostChargingReady --> SessionStopped: v2gStopSession()
+            SessionStopped --> [*]: on(SessionStopped)
+        }
+    }
