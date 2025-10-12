@@ -1,0 +1,28 @@
+sequenceDiagram
+    participant DSO as Grid Operator
+    participant CSMS as Central System (CSMS)
+    participant Charger as Charging Station (EVSE)
+    participant EV as Electric Vehicle (EV)
+
+    Note over DSO, CSMS: Grid demand returns to normal
+    activate CSMS
+    
+    DSO->>CSMS: Grid Signal (e.g., via OSCP)<br>Ends request for grid support
+    activate Charger
+
+    CSMS->>Charger: OCPP: SetChargingProfile.req<br>(Sends new profile to stop discharge)
+
+    Charger-->>CSMS: OCPP: SetChargingProfile.conf
+
+    Charger->>EV: ISO 15118: Stop Discharge
+    activate EV
+    EV-->>Charger: ISO 15118: Confirm Stop
+    deactivate EV
+
+    Note over Charger, EV: Bidirectional energy transfer ends
+
+    Charger->>CSMS: OCPP: TransactionEvent.req<br>(eventType: Updated, chargingState: "EVConnected")
+    CSMS-->>Charger: OCPP: TransactionEvent.conf
+
+    deactivate Charger
+    deactivate CSMS

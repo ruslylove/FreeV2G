@@ -1,0 +1,32 @@
+sequenceDiagram
+    participant DSO as Grid Operator
+    participant CSMS as Central System (CSMS)
+    participant Charger as Charging Station (EVSE)
+    participant EV as Electric Vehicle (EV)
+
+    Note over DSO, CSMS: Grid Operator detects peak energy demand
+
+    DSO->>CSMS: Grid Signal (e.g., via OSCP)<br>Requests grid support
+
+    activate CSMS
+    Note over CSMS: CSMS decides to initiate V2G and selects an available EV
+    CSMS->>Charger: OCPP: SetChargingProfile.req <br>(Sends profile with negative power value to command discharge)
+    activate Charger
+
+    Charger-->>CSMS: OCPP: SetChargingProfile.conf<br>(Confirms receipt of command)
+
+    Note over Charger, EV: Charger communicates with EV to start discharge
+    Charger->>EV: ISO 15118: Negotiate Discharge
+    activate EV
+    EV-->>Charger: ISO 15118: Confirm Discharge
+    deactivate EV
+
+    Note over Charger, EV: Bidirectional energy transfer begins (EV -> Grid)
+
+    Charger->>CSMS: OCPP: TransactionEvent.req<br>(eventType: Updated, chargingState: "Discharging")
+    CSMS-->>Charger: OCPP: TransactionEvent.conf
+
+    loop Periodic Energy Reporting
+        Charger->>CSMS: OCPP: MeterValues.req<br>(measurand: "Energy.Active.Export.Register")
+        CSMS-->>Charger: OCPP: MeterValues.conf
+    end

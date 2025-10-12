@@ -1,0 +1,58 @@
+sequenceDiagram
+    %% Define Participants
+    participant H as Host Controller (EVSE Application)
+    participant WB_EVSE as WHITE-beet Module (EVSE Role, V2G Stack)
+    participant EV_PEV as EV/PEV (Remote Vehicle)
+
+    %% Title and context
+    title V2G Discharge (10kW) Sequence in EVSE Role
+
+    %% 1. Initial Handshake & Discovery (Assumed completed: SLAC/SDP/Auth)
+    Note over H,EV_PEV: Session Setup, Service Discovery, and Authorization Complete
+
+    %% 2. EVSE Requests Schedules from Host
+    WB_EVSE->>EV_PEV: ISO15118: ServiceDetailRes/ChargeParameterDiscoveryRes
+    Note over EV_PEV: EV identifies that schedules are needed.
+
+    EV_PEV->>WB_EVSE: ISO15118: PowerDeliveryReq (Start charging/Discharge Request)
+
+    WB_EVSE-->>H: HCI Status: Schedules Requested (0x27, 0x84)
+    Note over WB_EVSE: Module tells Host: "I need the charging/discharge schedule now." [1-4]
+
+    %% 3. Host Sets Discharge Schedule (-10 kW)
+    Note over H: Host calculates schedules supporting negative power (-10 kW = FF F6 03)
+
+    H->>WB_EVSE: HCI Command: Set Schedules (0x27, 0x6C)
+    Note over H: Payload includes Power = FF F6 03 (-10kW) [5, 6]
+
+    WB_EVSE-->>H: HCI Response: Acknowledge (0x00)
+
+    %% 4. EVSE Sends Schedules to EV
+    WB_EVSE->>EV_PEV: ISO15118: ChargeParameterDiscoveryRes (with Schedules/Limits)
+    Note over EV_PEV: EV is informed that BPT/V2G (discharge) is supported up to 10 kW.
+
+    %% 5. Charge Loop / Discharge Loop (Continuous control and monitoring)
+    Note over H,EV_PEV: Pre-Charge, Cable Check, and Charging Start Complete (Start Charging 0x6E) [7, 8]
+
+    loop Charge Loop (Repeats approximately every 500ms)
+
+        EV_PEV->>WB_EVSE: ISO15118: CurrentDemandReq (Requesting -10kW current)
+        Note over EV_PEV: EV reports its status (Max/Target Current/Power are negative) [9, 10]
+
+        WB_EVSE-->>H: HCI Status: DC Charge Parameters Changed (0x27, 0x85)
+        Note over WB_EVSE: Host is notified about the EV's latest request (Target Current/Power) [11, 12]
+
+        H->>WB_EVSE: HCI Command: Update DC Charging Parameters (0x27, 0x63)
+        Note over H: Host reports present EVSE Voltage/Current (Monitors if discharge is 10kW) [13, 14]
+
+        WB_EVSE->>EV_PEV: ISO15118: CurrentDemandRes
+        Note over WB_EVSE: EVSE sends response allowing the requested current/power within limits
+
+    end
+
+    %% 6. Session Termination
+    EV_PEV->>WB_EVSE: ISO15118: PowerDeliveryReq (Stop charging)
+    WB_EVSE-->>H: HCI Status: Stop Charging Requested (0x27, 0x8A) [15, 16]
+    H->>WB_EVSE: HCI Command: Stop Listen (0x27, 0x70) [17, 18]
+    WB_EVSE->>EV_PEV: ISO15118: SessionStopReq
+    WB_EVSE-->>H: HCI Status: Session Stopped (0x27, 0x8C)
