@@ -1,51 +1,42 @@
+---
+config:
+  theme: redux
+  layout: dagre
+---
 flowchart LR
-
-    subgraph EVSE 
-    Charger
-    
-    subgraph WHITE beet EVSE
-        direction TB
-        SECC
-    end
-    
-
-    subgraph Com/BB/RaspPi
-        direction TB
-        CA
-    end
-
-    CT1[CAN<br>Transceiver]
-
-    CA <--> HMI
-    CA <--> CT1
-
-    CSMS <-- OCPP --> CA
-
-    end
-
-    subgraph EVS["EV (Simulator)"]
-
-    subgraph WHITE beet EV
-        direction TB
-        EVCC
-    end
-
-   
-
-
-    subgraph Computer2
-        direction TB
-        EV
-    end
-
-        CT2[CAN<br>Transceiver]
-
-
-    end
-
-
-    Charger["Power Module"] <-- CAN2.0B --> CA[Main<br>Controller] <-->|Ethernet/SPI| SECC <-->|"HomePlug Green PHY (PLC) over cp (CSS)"| EVCC <-->|Ethernet/SPI| EV["EV Simulator Software"]
-    CT1 <-- CAN over CAN-H & CAN-L (CHAdeMO) --> CT2 <--> EV
+ subgraph subGraph0["WHITE beet EVSE"]
     direction TB
-    
-  
+        SECC["SECC"]
+  end
+ subgraph subGraph1["Singleboard Computer"]
+    direction TB
+        CA["Main<br>Controller"]
+  end
+ subgraph subGraph2["EVSE"]
+        Charger["Power Module"]
+        subGraph0
+        subGraph1
+        CT1["CAN<br>Transceiver"]
+        HMI["HMI"]
+  end
+ subgraph subGraph3["WHITE beet EV"]
+    direction TB
+        EVCC["EVCC"]
+  end
+ subgraph Computer2["Computer2"]
+    direction TB
+        EV["EV Simulator Software"]
+  end
+ subgraph EVS["EV (Simulator)"]
+        subGraph3
+        Computer2
+        CT2["CAN<br>Transceiver"]
+  end
+    CA <--> HMI & CT1
+    CSMS["CSMS"] <-- "OCPP 2.1" --> CA
+    Charger <-- "CAN2.0B" --> CA
+    CA <-- Ethernet/SPI --> SECC
+    SECC <-- HomePlug Green PHY (PLC) over cp (CSS) --> EVCC
+    EVCC <-- Ethernet/SPI --> EV
+    CT1 <-- "CAN over CAN-H & CAN-L (CHAdeMO)" --> CT2
+    CT2 <--> EV
