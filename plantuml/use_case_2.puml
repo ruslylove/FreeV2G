@@ -1,0 +1,41 @@
+@startuml
+' version 1.2021.10
+' skinparam to make the diagram look better
+skinparam defaultFontName "TH Sarabun New"
+skinparam actorBorderColor black
+skinparam actorBackgroundColor #ADD8E6
+skinparam arrowColor black
+skinparam usecaseBorderColor black
+skinparam usecaseBackgroundColor #FFFFFF
+
+title เคสที่ 2: การดำเนินงานในฐานะ CPO และการจำหน่ายไฟฟ้า (CPO & Electricity Sales)
+
+left to right direction
+
+actor "ผู้ขับขี่ EV" as Driver
+actor "องค์กรเจ้าของสถานที่" as SiteOwner
+
+rectangle "การดำเนินงานสถานีอัดประจุ" {
+  actor "กฟน. (CPO)" as MEA_CPO
+  usecase "ติดตั้งและบำรุงรักษา" as UC1
+  usecase "บริหารจัดการเครือข่าย" as UC2
+  usecase "อัดประจุยานยนต์ไฟฟ้า" as UC3
+  usecase "ชำระค่าบริการอัดประจุ" as UC4
+  usecase "ชำระค่าสมาชิกเครือข่าย" as UC5
+  usecase "จำหน่ายไฟฟ้าพื้นฐาน" as UC6
+}
+
+Driver -up-> (UC3)
+Driver -down-> (UC4)
+SiteOwner -up-> (UC1)
+SiteOwner -down-> (UC5)
+SiteOwner -down-> (UC6)
+
+(UC1) -left- MEA_CPO
+(UC2) -left- MEA_CPO
+(UC3) -right- MEA_CPO
+(UC4) -right- MEA_CPO
+(UC5) -right- MEA_CPO
+(UC6) -right- MEA_CPO
+
+@enduml

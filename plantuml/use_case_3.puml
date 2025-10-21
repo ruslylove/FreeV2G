@@ -1,0 +1,43 @@
+@startuml
+' version 1.2021.10
+' skinparam to make the diagram look better
+skinparam defaultFontName "TH Sarabun New"
+skinparam actorBorderColor black
+skinparam actorBackgroundColor #ADD8E6
+skinparam arrowColor black
+skinparam usecaseBorderColor black
+skinparam usecaseBackgroundColor #FFFFFF
+
+title เคสที่ 3: การรวบรวมและบริหารจัดการ V2G (V2G Aggregation)
+
+left to right direction
+
+actor "ผู้ขับขี่ EV" as Driver
+actor "กฟน. (Aggregator)" as MEA_Aggregator
+actor "กฟน. (Grid Operator)" as MEA_Grid
+
+rectangle "การให้บริการเสริมความมั่นคงของระบบไฟฟ้า" {
+  usecase "ยินยอมให้ใช้แบตเตอรี่" as UC1
+  usecase "รวบรวมและบริหารจัดการ VPP" as UC2
+  usecase "ร้องขอบริการเสริม" as UC3
+  usecase "ให้บริการเสริมความมั่นคง" as UC4
+  usecase "จ่ายไฟคืนสู่ระบบ" as UC5
+  usecase "รับค่าตอบแทน" as UC6
+  usecase "ลดภาระไฟฟ้าสูงสุด" as UC4a
+  usecase "ควบคุมความถี่" as UC4b
+}
+
+Driver -right-> (UC1)
+(UC1) -right- MEA_Aggregator
+MEA_Aggregator -down-> (UC2)
+MEA_Grid -down-> (UC3)
+(UC3) -up-> MEA_Aggregator
+MEA_Aggregator -right-> (UC4)
+(UC4) -up-> MEA_Grid
+(UC4) <|-- (UC4a)
+(UC4) <|-- (UC4b)
+(UC5).> (UC1) : <<extends>>
+Driver -left-> (UC6)
+(UC6) -left- MEA_Aggregator
+
+@enduml

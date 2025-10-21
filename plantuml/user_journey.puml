@@ -1,0 +1,64 @@
+@startuml
+' version 1.2021.10
+' skinparam to make the diagram look better
+skinparam defaultFontName "TH Sarabun New"
+skinparam actorBorderColor black
+skinparam actorBackgroundColor #ADD8E6
+skinparam sequenceParticipantBorderColor black
+skinparam sequenceParticipantBackgroundColor #FFFFFF
+skinparam sequenceArrowColor black
+skinparam sequenceBoxBackgroundColor #F0F8FF
+skinparam sequenceBoxBorderColor #B0C4DE
+
+title แผนภาพลำดับเหตุการณ์: กรณีศึกษาประสบการณ์ผู้ใช้ V2G ของ กฟน.
+
+actor "นิรันดร์ (ผู้ขับขี่ EV)" as User
+participant "MEA Smart EV App" as App
+participant "เครื่องชาร์จ V2G กฟน." as Charger
+participant "ระบบ CPO กฟน." as CPO_System
+participant "ระบบ Grid Operator กฟน." as Grid_Operator
+
+box "ระยะที่ 1: การรับรู้และเริ่มต้นใช้งาน" #LightCyan
+    User -> App: ดาวน์โหลดและลงทะเบียน
+    note right of User: กรอกข้อมูลรถ (VIN) และการชำระเงิน
+    App -> CPO_System: ส่งข้อมูลเพื่อสร้างบัญชีและใบรับรองดิจิทัล
+    CPO_System --> App: ยืนยันการลงทะเบียนสำเร็จ
+    App --> User: แสดงผลการลงทะเบียน
+end box
+
+box "ระยะที่ 2-3: การใช้งานประจำวันและการตั้งค่า" #LightGreen
+    User -> Charger: เสียบสายชาร์จ
+    Charger -> CPO_System: เริ่มการสื่อสารและยืนยันตัวตนอัตโนมัติ
+    note right of Charger: ใช้เทคโนโลยี Plug & Charge (ISO 15118)
+    CPO_System --> Charger: อนุมัติการเชื่อมต่อ
+    Charger --> User: แสดงสถานะ "พร้อมใช้งาน" บนหน้าจอ
+    User -> App: เปิดแอปและตั้งค่าการเดินทาง
+    note right of User: "ต้องการกลับเวลา 18:00 น. \nแบตเตอรี่ขั้นต่ำ 80%"
+    App -> CPO_System: ส่งค่าที่ผู้ใช้กำหนด
+end box
+
+box "ระยะที่ 4: การทำงานของ V2G (V2G Event)" #LightYellow
+    Grid_Operator -> CPO_System: ส่งสัญญาณต้องการกำลังไฟฟ้าเสริม
+    note right of Grid_Operator: ผ่านโปรโตคอล OSCP
+    CPO_System -> Charger: ส่งคำสั่งให้จ่ายพลังงานกลับสู่ระบบ
+    note right of CPO_System: ผ่านโปรโตคอล OCPP 2.0.1
+    Charger -> User: (ผ่านรถยนต์) เริ่มจ่ายพลังงานออกจากแบตเตอรี่
+    CPO_System -> App: ส่งข้อมูลรายได้ที่เกิดขึ้นแบบ Real-time
+    App --> User: ส่งการแจ้งเตือน "คุณกำลังช่วยเสริมพลังให้กรุงเทพฯ!"
+end box
+
+box "ระยะที่ 5: การเดินทางกลับ" #LightPink
+    CPO_System -> Charger: สั่งหยุดจ่ายไฟและเริ่มอัดประจุ
+    note right of CPO_System: คำนวณเพื่อให้ได้ 80% ตอน 18:00 น.
+    Charger -> User: (ผ่านรถยนต์) อัดประจุจนถึงระดับที่ตั้งค่าไว้
+    User -> Charger: ถอดสายชาร์จเมื่อถึงเวลาเลิกงาน
+end box
+
+box "ระยะที่ 6: การรายงานผลและการบอกต่อ" #LightBlue
+    CPO_System -> App: ส่งข้อมูลสรุปการใช้งานรายเดือน
+    App --> User: แสดงรายงานสรุปในแอป
+    note right of User: "รายได้จาก V2G: 300 บาท\nค่าใช้จ่ายสุทธิ: 150 บาท"
+    User -> User: (นอกระบบ) แชร์ผลลัพธ์บนโซเชียลมีเดีย
+end box
+
+@enduml

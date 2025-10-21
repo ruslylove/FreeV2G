@@ -1,0 +1,39 @@
+@startuml
+' version 1.2021.10
+' skinparam to make the diagram look better
+skinparam defaultFontName "TH Sarabun New"
+skinparam actorBorderColor black
+skinparam actorBackgroundColor #ADD8E6
+skinparam arrowColor black
+skinparam usecaseBorderColor black
+skinparam usecaseBackgroundColor #FFFFFF
+
+title เคสที่ 1: การผลิตและจำหน่ายเครื่องอัดประจุ V2G (Manufacturing & Sales)
+
+left to right direction
+
+actor "กฟน. (MEA)" as MEA
+actor "ผู้ผลิตฮาร์ดแวร์" as Manufacturer
+actor "ลูกค้าองค์กร" as Customer
+
+rectangle "กระบวนการผลิตและจำหน่าย" {
+  usecase "ออกแบบและพัฒนาซอฟต์แวร์" as UC1
+  usecase "ให้สิทธิ์ใช้งานการผลิต" as UC2
+  usecase "ผลิตเครื่องอัดประจุ" as UC3
+  usecase "จำหน่ายเครื่องอัดประจุ" as UC4
+  usecase "ทำสัญญาบำรุงรักษา" as UC5
+}
+
+MEA -up-> (UC1)
+MEA -up-> (UC2)
+MEA -down-> (UC4)
+MEA -down-> (UC5)
+
+Manufacturer -up-> (UC3)
+
+(UC2) <.. (UC3) : <<includes>>
+
+(UC4) <-right- Customer
+(UC5) <-right- Customer
+
+@enduml
