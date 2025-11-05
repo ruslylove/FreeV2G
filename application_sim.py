@@ -13,6 +13,8 @@ if __name__ == "__main__":
     # EV specific arguments
     parser.add_argument('--ev-initial-soc', type=int, default=20, help='Initial State of Charge (SOC) for the EV battery (0-100).')
     parser.add_argument('--ev-battery-capacity', type=int, default=50000, help='Total capacity of the EV battery in Wh.')
+    parser.add_argument('--charge-loop-interval', type=float, default=2.0, help='Time in seconds between charge loop updates for the EV.')
+    parser.add_argument('--charge-rate-multiplier', type=float, default=1.0, help='Multiplier to accelerate simulated battery charging rate (e.g., 100 for 100x speed).')
     # EVSE specific arguments
     parser.add_argument('--evse-max-voltage', type=int, default=400, help='EVSE maximum voltage.')
     parser.add_argument('--evse-max-current', type=int, default=100, help='EVSE maximum current.')
@@ -38,6 +40,8 @@ if __name__ == "__main__":
             # Override with command-line arguments if provided
             ev.battery.setSOC(args.ev_initial_soc)
             ev.battery.setCapacity(args.ev_battery_capacity)
+            ev.charge_loop_interval = args.charge_loop_interval
+            ev.battery.charge_rate_multiplier = args.charge_rate_multiplier
             ev.loop()
             print("EV simulation finished")
 

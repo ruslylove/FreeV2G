@@ -41,6 +41,7 @@ class EvSim:
         self.current_energy_transfer_mode = -1
         self.state = "init"
         self.conn = None
+        self.charge_loop_interval = 2.0 # Default interval in seconds
 
     def __enter__(self):
         return self
@@ -93,14 +94,6 @@ class EvSim:
                 # If we are in the charging state, we need to handle the charge loop
                 if self.state == "charging":
                     if msg_id == 0x85: # This is the expected response in the charge loop
-                        self._handle_dc_charge_parameters_changed(data)
-                        charge_loop_count += 1
-                        
-                        # Simulate time passing and update battery
-                        simulated_time_per_loop = 60
-                        self.battery.tickSimulation(simulated_time_per_loop)
-                        self._update_charging_parameter()
-                        print(f"[EV_SIM] >> Charge Loop {charge_loop_count} | Battery SOC: {self.battery.getSOC()}% <<")
 
                         # Check if we should stop charging
                         if charge_loop_count > 3 and self.battery.getSOC() >= 80:
@@ -109,7 +102,20 @@ class EvSim:
                             self.state = "stopping"
                             continue
 
-                        # Send the next charge loop update to the EVSE
+                        # 1. Handle the new parameters from the EVSE
+                        self._handle_dc_charge_parameters_changed(data)
+                        charge_loop_count += 1
+                        
+                        # 2. Update battery SOC based on the new parameters and elapsed time
+                        self.battery.tickSimulation()
+                        self._update_charging_parameter()
+                        print(f"[EV_SIM] >> Charge Loop {charge_loop_count} | Battery SOC: {self.battery.getSOC()}% <<")
+
+                        # 3. Wait before sending the next update
+                        print(f"[EV_SIM] Waiting for {self.charge_loop_interval} seconds...")
+                        time.sleep(self.charge_loop_interval)
+
+                        # 4. Send the next charge loop update to the EVSE
                         send_message(self.conn, 0x1005, self.charging_params)
                         continue # Continue to next loop iteration to wait for the next 0x85 message
 
@@ -170,8 +176,8 @@ class EvSim:
     def _handle_start_charging(self, data):
         print("[EV_SIM] 'Start Charging' confirmed by EVSE.")
         time.sleep(2)
+        self.battery.startCharging()
         self.state = "charging"
-        self.battery.is_charging = True
         # Send the first charge loop update to kick off the process
         send_message(self.conn, 0x1005, self.charging_params)
 
@@ -184,10 +190,8 @@ class EvSim:
 
     def _handle_dc_charge_parameters_changed(self, data):
         print("[EV_SIM] Received EVSE charge parameters update.")
-        print(f"[EV_SIM] DEBUG: data received: {data}")
         self.battery.in_voltage = data.get('present_voltage', 0)
         self.battery.in_current = data.get('present_current', 0)
-        time.sleep(2)
 
     def _handle_session_stopped(self, data):
         print("[EV_SIM] 'Session Stopped' received from EVSE.")

@@ -14,6 +14,7 @@ class BatterySim():
         self.bulk_soc = 80
         self._soc = 0
 
+        self.charge_rate_multiplier = 1.0
         self.in_voltage = 0
         self.in_current = 0
         self.max_current = 100
@@ -95,22 +96,36 @@ class BatterySim():
     def setEnergyTransferMode(self, mode):
         self.energy_transfer_mode = mode
 
-    def tickSimulation(self, simulated_duration_sec=0):
+    def startCharging(self):
         """
-        Calculates the change in battery level based on a fixed simulated duration.
-        :param simulated_duration_sec: The amount of simulated time that has passed in seconds.
+        Resets the calculation timer and marks the battery as charging.
         """
-        # calculate SoC and battery level
-        if self.is_charging and self._soc < self.full_soc:
-            power = self.in_voltage * self.in_current  # Power in Watts
-            energy_added_ws = power * simulated_duration_sec  # Energy in Watt-seconds
-            energy_added_wh = energy_added_ws / 3600.0  # Energy in Watt-hours
-            self._level += energy_added_wh
-            self._soc = int((self._level / self._capacity) * 100)
+        self.is_charging = True
+        self._last_calc_time = time.time_ns() // 1000000 # Reset timer to now
 
-            # check if battery level exceeds capacity
-            if self._level >= self._capacity:
-                self._level = self._capacity
-                self.is_full = True
-            
-            print(str(self))
+    def tickSimulation(self):
+        """
+        Calculates the change in battery level based on the elapsed time since the last tick.
+        """
+        ticked = False
+        present = time.time_ns() // 1000000  # time in milliseconds
+
+        if (present - self._last_calc_time) > self.timestep:
+            ticked = True
+            time_passed_ms = present - self._last_calc_time
+            self._last_calc_time = present
+
+            # calculate SoC and battery level
+            if self.is_charging and self._soc < self.full_soc:
+                power_watts = self.in_voltage * self.in_current
+                energy_wh = (power_watts * time_passed_ms * self.charge_rate_multiplier) / (1000 * 3600)
+                self._level += energy_wh
+                self._soc = int((self._level / self._capacity) * 100)
+
+                # check if battery level exceeds capacity
+                if self._level >= self._capacity:
+                    self._level = self._capacity
+                    self.is_full = True
+                
+                print(str(self))
+        return ticked

@@ -246,3 +246,33 @@ Power up the WHITE-beet and run the application in SPI mode with the following c
 ```console
 sudo .venv/bin/python3 Application.py spi -i spidev0.0 -m 00:01:01:63:77:33 -r EVSE
 ```
+
+**Using simulation**
+
+run EVSE and EV simulation with default parameters
+
+```console
+sudo .venv/bin/python3 application_sim.py -r EVSE
+sudo .venv/bin/python3 application_sim.py -r EV
+```
+
+You can also run the simulation with specific parameters. For example, to start the EVSE with 22kW max power and the EV with an initial State of Charge of 30%:
+
+**Terminal 1 (EVSE)**: 
+```console 
+$ .venv/bin/python3 application_sim.py -r EVSE --evse-max-power 22000
+```
+**Terminal 2 (EV)**: 
+```console
+$ .venv/bin/python3 application_sim.py -r EV --ev-initial-soc 30
+```
+#### EVSE-Specific Parameters
+
+*   `--ev-initial-soc <percent>`: Set the battery's initial State of Charge (e.g., `20` for 20%).
+*   `--ev-battery-capacity <Wh>`: Set the total capacity of the EV's battery in Watt-hours.
+*   `--charge-loop-interval <seconds>`: Time between charge loop updates for the EV (defaults to `2.0`).
+*   `--charge-rate-multiplier <factor>`: Multiplier to accelerate simulated battery charging rate (e.g., `100` for 100x speed, defaults to `1.0`).
+
+
+
+

@@ -30,23 +30,43 @@ class ChargerSim():
         the minimum and maximum values of the EVSE and EV.
         """
         if self.stopped:
-            self.evse_present_voltage = 0
+            delta_t = (time.time_ns() / 1000000) - self.timestamp_last_calc_u
+            self.timestamp_last_calc_u = time.time_ns() / 1000000
+            self.evse_present_voltage -= self.evse_delta_u * delta_t
+            self.evse_present_voltage = max(self.evse_present_voltage, 0)
+        elif self.ev_target_voltage > self.evse_present_voltage:
+            delta_t = (time.time_ns() / 1000000) - self.timestamp_last_calc_u
+            self.timestamp_last_calc_u = time.time_ns() / 1000000
+            self.evse_present_voltage += self.evse_delta_u * delta_t
+            self.evse_present_voltage = min(self.evse_present_voltage, self.evse_max_voltage, self.ev_target_voltage)
+        elif self.ev_target_voltage < self.evse_present_voltage:
+            delta_t = (time.time_ns() / 1000000) - self.timestamp_last_calc_u
+            self.timestamp_last_calc_u = time.time_ns() / 1000000
+            self.evse_present_voltage -= self.evse_delta_u * delta_t
+            self.evse_present_voltage = max(self.evse_present_voltage, self.evse_min_voltage, self.ev_target_voltage)
         else:
-            # In a simulation, we can assume the charger tries to match the target immediately,
-            # respecting its own limits.
-            self.evse_present_voltage = min(self.ev_target_voltage, self.evse_max_voltage)
+            # Target voltage already reached
+            pass
 
     def _calcEvsePresentCurrent(self):
         """
         Calculates the present current at the current point in time, based on the given delta_i and
         the minimum and maximum values of the EVSE and EV.
         """
+        delta_t = (time.time_ns() / 1000000) - self.timestamp_last_calc_i
+        self.timestamp_last_calc_i = time.time_ns() / 1000000
         if self.stopped:
-            self.evse_present_current = 0
+            self.evse_present_current -= self.evse_delta_i * delta_t
+            self.evse_present_current = max(self.evse_present_current, 0)
+        elif self.ev_target_current > self.evse_present_current:
+            self.evse_present_current += self.evse_delta_i * delta_t
+            self.evse_present_current = min(self.evse_present_current, self.evse_max_current, self.ev_target_current)
+        elif self.ev_target_current < self.evse_present_current:
+            self.evse_present_current -= self.evse_delta_i * delta_t
+            self.evse_present_current = max(self.evse_present_current, self.evse_min_current, self.ev_target_current)
         else:
-            # In a simulation, we can assume the charger tries to match the target immediately,
-            # respecting its own limits.
-            self.evse_present_current = min(self.ev_target_current, self.evse_max_current)
+            # Target current already reached
+            pass
 
     def start(self):
         """
@@ -105,16 +125,16 @@ class ChargerSim():
         if voltage > self.evse_max_voltage:
             return False
         else:
-            self.ev_target_voltage = voltage
             self._calcEvsePresentVoltage()
+            self.ev_target_voltage = voltage
             return True
 
     def setEvTargetCurrent(self, current):
         if current > self.evse_max_current:
             return False
         else:
-            self.ev_target_current = current
             self._calcEvsePresentCurrent()
+            self.ev_target_current = current
             return True
 
     def getEvseMaxCurrent(self):
