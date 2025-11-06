@@ -23,6 +23,7 @@ class ChargerSim():
         self.ev_target_voltage = 0
         self.ev_target_current = 0
         self.stopped = True
+        self.sim_rate_multiplier = 1.0
 
     def _calcEvsePresentVoltage(self):
         """
@@ -32,17 +33,17 @@ class ChargerSim():
         if self.stopped:
             delta_t = (time.time_ns() / 1000000) - self.timestamp_last_calc_u
             self.timestamp_last_calc_u = time.time_ns() / 1000000
-            self.evse_present_voltage -= self.evse_delta_u * delta_t
+            self.evse_present_voltage -= self.evse_delta_u * delta_t * self.sim_rate_multiplier
             self.evse_present_voltage = max(self.evse_present_voltage, 0)
         elif self.ev_target_voltage > self.evse_present_voltage:
             delta_t = (time.time_ns() / 1000000) - self.timestamp_last_calc_u
             self.timestamp_last_calc_u = time.time_ns() / 1000000
-            self.evse_present_voltage += self.evse_delta_u * delta_t
+            self.evse_present_voltage += self.evse_delta_u * delta_t * self.sim_rate_multiplier
             self.evse_present_voltage = min(self.evse_present_voltage, self.evse_max_voltage, self.ev_target_voltage)
         elif self.ev_target_voltage < self.evse_present_voltage:
             delta_t = (time.time_ns() / 1000000) - self.timestamp_last_calc_u
             self.timestamp_last_calc_u = time.time_ns() / 1000000
-            self.evse_present_voltage -= self.evse_delta_u * delta_t
+            self.evse_present_voltage -= self.evse_delta_u * delta_t * self.sim_rate_multiplier
             self.evse_present_voltage = max(self.evse_present_voltage, self.evse_min_voltage, self.ev_target_voltage)
         else:
             # Target voltage already reached
@@ -56,13 +57,13 @@ class ChargerSim():
         delta_t = (time.time_ns() / 1000000) - self.timestamp_last_calc_i
         self.timestamp_last_calc_i = time.time_ns() / 1000000
         if self.stopped:
-            self.evse_present_current -= self.evse_delta_i * delta_t
+            self.evse_present_current -= self.evse_delta_i * delta_t * self.sim_rate_multiplier
             self.evse_present_current = max(self.evse_present_current, 0)
         elif self.ev_target_current > self.evse_present_current:
-            self.evse_present_current += self.evse_delta_i * delta_t
+            self.evse_present_current += self.evse_delta_i * delta_t * self.sim_rate_multiplier
             self.evse_present_current = min(self.evse_present_current, self.evse_max_current, self.ev_target_current)
         elif self.ev_target_current < self.evse_present_current:
-            self.evse_present_current -= self.evse_delta_i * delta_t
+            self.evse_present_current -= self.evse_delta_i * delta_t * self.sim_rate_multiplier
             self.evse_present_current = max(self.evse_present_current, self.evse_min_current, self.ev_target_current)
         else:
             # Target current already reached

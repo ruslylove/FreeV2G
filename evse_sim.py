@@ -1,13 +1,16 @@
 import time
 import socket
+import threading
 import json
 from Charger_sim import ChargerSim
+from message_ids import get_message_name
 
 def send_message(conn, msg_id, data):
     """Sends a message over the socket."""
     message = json.dumps({'id': msg_id, 'data': data}).encode('utf-8')
     conn.sendall(len(message).to_bytes(4, 'big') + message)
-    print(f"[EVSE_SIM] SENT: id={hex(msg_id)}, data={data}")
+    msg_name = get_message_name(msg_id)
+    print(f"[EVSE_SIM] SENT: {msg_name} (id={hex(msg_id)}), data={data}")
 
 def receive_message(conn):
     """Receives a message from the socket."""
@@ -17,17 +20,22 @@ def receive_message(conn):
     msglen = int.from_bytes(raw_msglen, 'big')
     data = conn.recv(msglen)
     message = json.loads(data.decode('utf-8'))
-    print(f"[EVSE_SIM] RECV: id={hex(message['id'])}, data={message['data']}")
-    return message['id'], message['data']
+    msg_id = message['id']
+    msg_name = get_message_name(msg_id)
+    print(f"[EVSE_SIM] RECV: {msg_name} (id={hex(msg_id)}), data={message['data']}")
+    return msg_id, message['data']
 
 class EvseSim:
-    def __init__(self, host, port):
+    def __init__(self, host, port, update_queue=None, stop_event=None, pause_event=None):
         self.host = host
         self.port = port
         self.charger = ChargerSim()
         self.schedule = None
         self.evse_config = None
         self.charging = False
+        self.update_queue = update_queue
+        self.stop_event = stop_event or threading.Event()
+        self.pause_event = pause_event or threading.Event()
         self.conn = None
         self.sock = None
 
@@ -69,7 +77,13 @@ class EvseSim:
         }
         send_message(self.conn, 0x80, session_started_data)
 
-        while True:
+        while not self.stop_event.is_set():
+            # Handle pause
+            if self.pause_event.is_set():
+                time.sleep(0.5)
+                continue
+
+            self.conn.settimeout(0.5) # Use a timeout to remain responsive
             try:
                 msg_id, data = receive_message(self.conn)
                 if msg_id is None:
@@ -94,6 +108,8 @@ class EvseSim:
                     break
                 else:
                     print(f"[EVSE_SIM] Unknown message ID: {hex(msg_id)}")
+            except socket.timeout:
+                continue # No message received, loop again
 
             except (ConnectionResetError, BrokenPipeError):
                 print("[EVSE_SIM] Connection lost with EV.")
@@ -106,7 +122,11 @@ class EvseSim:
 
     def _handle_request_authorization(self, data):
         print("[EVSE_SIM] 'Request Authorization' received")
-        auth_str = input("Authorize the vehicle? Type 'yes' or 'no': ")
+        # In a real UI, this would be handled differently, but for now, auto-authorize.
+        if self.update_queue:
+             self.update_queue.put("[UI ACTION] Auto-authorizing vehicle.")
+        auth_str = "yes"
+        # auth_str = input("Authorize the vehicle? Type 'yes' or 'no': ")
         authorized = auth_str.lower() == "yes"
         if authorized:
             print("[EVSE_SIM] Vehicle was authorized by user!")
@@ -125,7 +145,12 @@ class EvseSim:
         self.charger.setEvTargetCurrent(target_current)
         print(f"[EVSE_SIM] Initial EV targets set: Voltage={target_voltage}V, Current={target_current}A")
 
-        # For simplicity, just acknowledge and send a schedule
+        # Per the HCI spec, the EVSE first notifies the host that schedules are requested.
+        # We simulate this by logging it.
+        schedules_requested_status = {'timeout': 500, 'max_entries': 5}
+        print(f"[EVSE_SIM] STATUS: SchedulesRequested (id=0x84), data={schedules_requested_status}")
+
+        # The host (our simulation) then responds by providing the schedules.
         self.schedule = {
             "code": 0,
             "schedule_tuples": [{
@@ -137,7 +162,7 @@ class EvseSim:
             }]
         }
         print(f"[EVSE_SIM] Sending schedule: {self.schedule}")
-        send_message(self.conn, 0x84, self.schedule) # Send Schedules
+        send_message(self.conn, 0x6C, self.schedule) # SetSchedules
 
     def _handle_request_start_charging(self, data):
         print("[EVSE_SIM] 'Request Start Charging' received")
@@ -166,6 +191,10 @@ class EvseSim:
         self.charger.setEvTargetVoltage(target_voltage)
         self.charger.setEvTargetCurrent(target_current)
 
+        # Let the charger simulation calculate the new present values
+        self.charger._calcEvsePresentVoltage()
+        self.charger._calcEvsePresentCurrent()
+
         # Simulate EVSE measurements
         charging_params = {
             'present_voltage': int(self.charger.getEvsePresentVoltage()),
@@ -175,6 +204,18 @@ class EvseSim:
             'max_power': int(self.charger.getEvseMaxPower()),
             'status': 0,
         }
+
+        # Send data to UI for plotting
+        if self.update_queue:
+            plot_data = {
+                'present_voltage': charging_params['present_voltage'],
+                'present_current': charging_params['present_current'],
+                'target_voltage': target_voltage,
+                'target_current': target_current,
+                'max_voltage': charging_params['max_voltage'],
+                'max_current': charging_params['max_current'],
+            }
+            self.update_queue.put({'plot_data': plot_data})
 
         # Send updated EVSE charging parameters
         send_message(self.conn, 0x85, charging_params) # DCChargeParametersChanged
@@ -192,7 +233,8 @@ class EvseSim:
             print("[EVSE_SIM] SLAC matching successful.")
             
             # Handle V2G communication
-            self._handle_ev_requests()
+            if not self.stop_event.is_set():
+                self._handle_ev_requests()
 
         except KeyboardInterrupt:
             print("\n[EVSE_SIM] Shutting down.")

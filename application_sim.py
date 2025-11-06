@@ -19,6 +19,7 @@ if __name__ == "__main__":
     parser.add_argument('--evse-max-voltage', type=int, default=400, help='EVSE maximum voltage.')
     parser.add_argument('--evse-max-current', type=int, default=100, help='EVSE maximum current.')
     parser.add_argument('--evse-max-power', type=int, default=25000, help='EVSE maximum power.')
+    parser.add_argument('--evse-sim-rate-multiplier', type=float, default=1.0, help='Multiplier to accelerate simulated EVSE ramp-up rate (e.g., 100 for 100x speed).')
     
     args = parser.parse_args()
 
@@ -55,6 +56,7 @@ if __name__ == "__main__":
             evse.charger.setEvseMaxVoltage(args.evse_max_voltage)
             evse.charger.setEvseMaxCurrent(args.evse_max_current)
             evse.charger.setEvseMaxPower(args.evse_max_power)
+            evse.charger.sim_rate_multiplier = args.evse_sim_rate_multiplier
 
             # Start the EVSE loop
             evse.loop()

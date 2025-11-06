@@ -1,13 +1,16 @@
 import time
 import socket
+import threading
 import json
 from battery_sim import BatterySim
+from message_ids import get_message_name
 
 def send_message(conn, msg_id, data):
     """Sends a message over the socket."""
     message = json.dumps({'id': msg_id, 'data': data}).encode('utf-8')
     conn.sendall(len(message).to_bytes(4, 'big') + message)
-    print(f"[EV_SIM] SENT: id={hex(msg_id)}, data={data}")
+    msg_name = get_message_name(msg_id)
+    print(f"[EV_SIM] SENT: {msg_name} (id={hex(msg_id)}), data={data}")
 
 def receive_message(conn):
     """Receives a message from the socket."""
@@ -17,14 +20,19 @@ def receive_message(conn):
     msglen = int.from_bytes(raw_msglen, 'big')
     data = conn.recv(msglen)
     message = json.loads(data.decode('utf-8'))
-    print(f"[EV_SIM] RECV: id={hex(message['id'])}, data={message['data']}")
-    return message['id'], message['data']
+    msg_id = message['id']
+    msg_name = get_message_name(msg_id)
+    print(f"[EV_SIM] RECV: {msg_name} (id={hex(msg_id)}), data={message['data']}")
+    return msg_id, message['data']
 
 class EvSim:
-    def __init__(self, host, port):
+    def __init__(self, host, port, update_queue=None, stop_event=None, pause_event=None):
         self.host = host
         self.port = port
         self.battery = BatterySim()
+        self.update_queue = update_queue
+        self.stop_event = stop_event or threading.Event()
+        self.pause_event = pause_event or threading.Event()
         self.config = {
             "evid": "C49300222222",
             "protocol_count": 2,
@@ -83,9 +91,16 @@ class EvSim:
         # Start by indicating readiness for V2G
         send_message(self.conn, 0x1000, {}) # EV ready for V2G
 
-        while self.state != "end":
+        while self.state != "end" and not self.stop_event.is_set():
+            # Handle pause
+            if self.pause_event.is_set():
+                time.sleep(0.5)
+                continue
+
+            self.conn.settimeout(0.5) # Use a timeout to remain responsive
             try:
                 msg_id, data = receive_message(self.conn)
+
                 if msg_id is None:
                     print("[EV_SIM] EVSE disconnected.")
                     self.state = "end"
@@ -110,6 +125,10 @@ class EvSim:
                         self.battery.tickSimulation()
                         self._update_charging_parameter()
                         print(f"[EV_SIM] >> Charge Loop {charge_loop_count} | Battery SOC: {self.battery.getSOC()}% <<")
+                        
+                        # Send SOC update to the UI
+                        if self.update_queue:
+                            self.update_queue.put(f"SOC_UPDATE:{self.battery.getSOC()}")
 
                         # 3. Wait before sending the next update
                         print(f"[EV_SIM] Waiting for {self.charge_loop_interval} seconds...")
@@ -134,6 +153,8 @@ class EvSim:
                 else:
                     print(f"[EV_SIM] Unknown message ID: {hex(msg_id)}")
 
+            except socket.timeout:
+                continue # No message received, loop again
             except (ConnectionResetError, BrokenPipeError):
                 print("[EV_SIM] Connection lost with EVSE.")
                 self.state = "end"
@@ -210,7 +231,8 @@ class EvSim:
             print("[EV_SIM] SLAC matching successful.")
 
             # Handle V2G communication
-            self._handle_evse_messages()
+            if not self.stop_event.is_set():
+                self._handle_evse_messages()
 
         except KeyboardInterrupt:
             print("\n[EV_SIM] Shutting down.")
