@@ -49,15 +49,6 @@ def main():
         wb.v2gEvseSetDcChargingParameters(dc_params)
         logger.log("EVSE: DC charging parameters set.")
 
-        sdp_config = {
-            'allow_unsecure': True,
-            'unsecure_port': 50000, # with in the range 49152-65535
-            'allow_secure': False,
-            'secure_port': 50001, # with in the range 49152-65535'
-        }
-        wb.v2gEvseSetSdpConfig(sdp_config)
-        logger.log("EVSE: SDP config set.")
-
         wb.v2gStart()
         logger.log("EVSE: V2G service started.")
         wb.v2gEvseStartListen()

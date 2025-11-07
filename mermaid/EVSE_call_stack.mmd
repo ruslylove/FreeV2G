@@ -1,0 +1,111 @@
+sequenceDiagram
+    participant App as Application.py
+    participant E as Evse.py
+    participant W as Whitebeet.py
+    participant C as Charger.py
+
+    App->>E: Evse(iftype, iface, mac)
+    E->>W: Whitebeet(iftype, iface, mac)
+    W-->>E: whitebeet instance
+    E->>C: Charger()
+    C-->>E: charger instance
+    E-->>App: evse instance
+
+    App->>E: getCharger()
+    E-->>App: charger instance
+    App->>C: setEvseDeltaVoltage(0.5)
+    App->>C: setEvseDeltaCurrent(0.05)
+    App->>C: setEvseMaxVoltage(400)
+    App->>C: setEvseMaxCurrent(100)
+    App->>C: setEvseMaxPower(25000)
+    App->>E: getCharger()
+    E-->>App: charger instance
+    App->>C: start()
+
+    App->>E: setSchedule(schedule)
+    App->>E: whitebeet.networkConfigSetPortMirrorState(portmirror)
+    E->>W: networkConfigSetPortMirrorState(portmirror)
+    Note over W: Send HCI Msg 0x05:0x55 (Set Port Mirror State)
+
+    App->>E: loop()
+    E->>E: _initialize()
+    E->>W: controlPilotSetMode(1)
+    Note over W: Send HCI Msg 0x29:0x40 (Set Mode)
+    E->>W: controlPilotSetDutyCycle(100)
+    Note over W: Send HCI Msg 0x29:0x44 (Set PWM duty cycle)
+    E->>W: controlPilotStart()
+    Note over W: Send HCI Msg 0x29:0x42 (Start)
+    E->>W: slacStart(1)
+    Note over W: Send HCI Msg 0x28:0x42 (Start SLAC)
+
+    E->>E: _waitEvConnected(None)
+    loop Wait for EV
+        E->>W: controlPilotGetState()
+        Note over W: Send HCI Msg 0x29:0x48 (Get state)
+        W-->>E: cp_state
+    end
+    Note over E: EV Connected (state B)
+
+    E->>E: _handleEvConnected()
+    E->>W: slacStartMatching()
+    Note over W: Send HCI Msg 0x28:0x44 (Start SLAC Matching Process)
+    E->>W: controlPilotSetDutyCycle(5)
+    Note over W: Send HCI Msg 0x29:0x44 (Set PWM duty cycle)
+    E->>W: slacMatched()
+    Note over W: Wait for HCI Msg 0x28:0x80 (SLAC process was successful)
+    W-->>E: True (SLAC successful)
+
+    E->>E: _handleNetworkEstablished()
+    E->>W: v2gSetMode(1)
+    Note over W: Send HCI Msg 0x27:0x40 (Set Mode)
+    E->>W: v2gEvseSetConfiguration(evse_config)
+    Note over W: Send HCI Msg 0x27:0x60 (Set Configuration)
+    E->>W: v2gEvseSetDcChargingParameters(dc_params)
+    Note over W: Send HCI Msg 0x27:0x62 (Set DC Charging Parameters)
+    E->>W: v2gEvseSetAcChargingParameters(ac_params)
+    Note over W: Send HCI Msg 0x27:0x65 (Set AC Charging Parameters)
+    E->>W: v2gEvseStartListen()
+    Note over W: Send HCI Msg 0x27:0x6A (Start Listen)
+
+    loop V2G Communication
+        alt Charging is active
+            E->>W: v2gEvseReceiveRequestSilent()
+            loop Every 500ms
+                E->>C: tick()
+                E->>C: getEvsePresentVoltage()
+                E->>C: getEvsePresentCurrent()
+                C-->>E: voltage, current
+                E->>W: v2gEvseUpdateDcChargingParameters(params)
+                Note over W: Send HCI Msg 0x27:0x63 (Update DC Charging Parameters)
+            end
+        else Not charging
+            E->>W: v2gEvseReceiveRequest()
+        end
+        Note over W: Receive HCI Msg 0x27:0x80-0x91 (EVSE Status messages)
+        W-->>E: id, data
+        
+        alt Notification Received
+            E->>E: _handle...Notification(data)
+            Note over E: e.g., _handleSessionStarted(data) (0x80)<br/>_handleRequestAuthorization(data) (0x82)<br/>_handleSchedulesRequested(data) (0x84)<br/>_handleStartChargingRequested(data) (0x89)...
+            
+            alt Response required
+                E->>W: v2gEvseSetAuthorizationStatus(True)
+                Note over W: Send HCI Msg 0x27:0x6B (Set Authorization Status)
+                E->>W: v2gEvseSetSchedules(schedule)
+                Note over W: Send HCI Msg 0x27:0x6C (Set Schedules)
+                E->>W: v2gEvseSetCableCheckFinished(True)
+                Note over W: Send HCI Msg 0x27:0x6D (Set Cable Check Finished)
+                E->>W: v2gEvseStartCharging()
+                Note over W: Send HCI Msg 0x27:0x6E (Start Charging)
+                E->>W: v2gEvseStopCharging()
+                Note over W: Send HCI Msg 0x27:0x6F (Stop Charging)
+            end
+        end
+    end
+    Note over E: Session stops or error occurs
+
+    E->>W: v2gEvseStopListen()
+    Note over W: Send HCI Msg 0x27:0x70 (Stop Listen)
+    E->>W: controlPilotStop()
+    Note over W: Send HCI Msg 0x29:0x43 (Stop)
+    E-->>App: loop finished

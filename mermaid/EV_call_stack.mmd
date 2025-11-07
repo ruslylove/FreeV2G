@@ -1,0 +1,102 @@
+sequenceDiagram
+    participant App as Application.py
+    participant EV as Ev.py
+    participant W as Whitebeet.py
+    participant B as Battery.py
+
+    App->>EV: Ev(iftype, iface, mac)
+    EV->>W: Whitebeet(iftype, iface, mac)
+    W-->>EV: whitebeet instance
+    EV->>B: Battery()
+    B-->>EV: battery instance
+    EV->>EV: _updateChargingParameter()
+    EV-->>App: ev instance
+
+    alt Configuration file provided
+        App->>EV: load(config)
+        EV->>B: setCapacity(capacity)
+        EV->>B: setLevel(level)
+        EV->>EV: _updateChargingParameter()
+    end
+
+    App->>EV: whitebeet.networkConfigSetPortMirrorState(args.portmirror)
+    EV->>W: networkConfigSetPortMirrorState(portmirror)
+    Note over W: Send HCI Msg 0x05:0x55 (Set Port Mirror State)
+
+    App->>EV: loop()
+    EV->>EV: _initialize()
+    EV->>W: controlPilotSetMode(0)
+    Note over W: Send HCI Msg 0x29:0x40 (Set Mode)
+    EV->>W: controlPilotStart()
+    Note over W: Send HCI Msg 0x29:0x42 (Start)
+    EV->>W: controlPilotSetResistorValue(0)
+    Note over W: Send HCI Msg 0x29:0x46 (Set resistor level)
+    EV->>W: slacSetValidationConfiguration(0)
+    Note over W: Send HCI Msg 0x28:0x4B (Set Validation Configuration)
+    EV->>W: slacStart(0)
+    Note over W: Send HCI Msg 0x28:0x42 (Start SLAC)
+
+    EV->>EV: _waitEvseConnected(None)
+    loop Wait for EVSE
+        EV->>W: controlPilotGetDutyCycle()
+        Note over W: Send HCI Msg 0x29:0x45 (Get PWM duty cycle)
+        W-->>EV: cp_duty_cycle
+    end
+    Note over EV: EVSE Connected (Duty Cycle < 10%)
+
+    EV->>EV: _handleEvseConnected()
+    EV->>W: slacStartMatching()
+    Note over W: Send HCI Msg 0x28:0x44 (Start SLAC Matching Process)
+    EV->>W: slacMatched()
+    Note over W: Wait for HCI Msg 0x28:0x80 (SLAC process was successful)
+    W-->>EV: True (SLAC successful)
+
+    EV->>EV: _handleNetworkEstablished()
+    EV->>W: v2gSetMode(0)
+    Note over W: Send HCI Msg 0x27:0x40 (Set Mode)
+    EV->>W: v2gEvSetConfiguration(ev_config)
+    Note over W: Send HCI Msg 0x27:0xA0 (Set Configuration)
+    EV->>W: v2gSetDCChargingParameters(dc_params)
+    Note over W: Send HCI Msg 0x27:0xA2 (Set DC Charging Parameters)
+    EV->>W: v2gSetACChargingParameters(ac_params)
+    Note over W: Send HCI Msg 0x27:0xA5 (Set AC Charging Parameters)
+    EV->>W: v2gStartSession()
+    Note over W: Send HCI Msg 0x27:0xA9 (Start Session)
+
+    loop V2G Communication State Machine
+        EV->>W: v2gEvReceiveRequest()
+        W-->>EV: id, data
+        Note over W: Receive HCI Msg 0x27:0xC0-0xCD
+        
+        alt Notification Received
+            EV->>EV: _handle...Notification(data)
+            Note over EV: e.g., _handleSessionStarted(data) (0xC0)<br/>_handleScheduleReceived(data) (0xC3)<br/>_handleChargingReady(data) (0xC7)...
+            
+            alt State transition requires action
+                EV->>W: v2gStartCableCheck()
+                Note over W: Send HCI Msg 0x27:0xAA (Start Cable Check)
+                EV->>W: v2gStartCharging()
+                Note over W: Send HCI Msg 0x27:0xAC (Start Charging)
+                EV->>W: v2gStopCharging(False)
+                Note over W: Send HCI Msg 0x27:0xAD (Stop Charging)
+                EV->>W: v2gStopSession()
+                Note over W: Send HCI Msg 0x27:0xAE (Stop Session)
+            end
+        end
+
+        alt Charging is active
+            EV->>B: tickSimulation()
+            B-->>EV: True (time for update)
+            EV->>B: getSOC()
+            B-->>EV: current_soc
+            EV->>W: v2gUpdateDCChargingParameters(params)
+            Note over W: Send HCI Msg 0x27:0xA3 (Update DC Charging Parameters)
+        end
+    end
+    Note over EV: Session stops or error occurs
+
+    EV->>W: controlPilotSetResistorValue(0)
+    Note over W: Send HCI Msg 0x29:0x46 (Set resistor level)
+    EV->>W: v2gStopSession()
+    Note over W: Send HCI Msg 0x27:0xAE (Stop Session)
+    EV-->>App: loop finished
