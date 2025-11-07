@@ -1,244 +1,128 @@
-import time
 import socket
-import threading
-import json
-from battery_sim import BatterySim
-from message_ids import get_message_name
+import time
+from Whitebeet import Whitebeet
+from Logger import Logger
 
-def send_message(conn, msg_id, data):
-    """Sends a message over the socket."""
-    message = json.dumps({'id': msg_id, 'data': data}).encode('utf-8')
-    conn.sendall(len(message).to_bytes(4, 'big') + message)
-    msg_name = get_message_name(msg_id)
-    print(f"[EV_SIM] SENT: {msg_name} (id={hex(msg_id)}), data={data}")
+HOST = '127.0.0.1'
+EV_PORT = 6000
 
-def receive_message(conn):
-    """Receives a message from the socket."""
-    raw_msglen = conn.recv(4)
-    if not raw_msglen:
-        return None, None
-    msglen = int.from_bytes(raw_msglen, 'big')
-    data = conn.recv(msglen)
-    message = json.loads(data.decode('utf-8'))
-    msg_id = message['id']
-    msg_name = get_message_name(msg_id)
-    print(f"[EV_SIM] RECV: {msg_name} (id={hex(msg_id)}), data={message['data']}")
-    return msg_id, message['data']
+def main():
+    """
+    Simulates an EV host controller interacting with the Whitebeet.
+    Follows the sequence from section 21.9 of the SEVENSTAX manual.
+    """
+    logger = Logger()
+    logger.log("--- EV Simulation Started ---")
+    
+    try:
+        # The Whitebeet class expects an interface type and name.
+        # For the stub, we use 'ETH' and the socket details.
+        # The 'mac' parameter is not used by the stub but required by the class constructor.
+        wb = Whitebeet(iftype='ETH', iface=(HOST, EV_PORT), mac='00:00:00:00:00:01')
 
-class EvSim:
-    def __init__(self, host, port, update_queue=None, stop_event=None, pause_event=None):
-        self.host = host
-        self.port = port
-        self.battery = BatterySim()
-        self.update_queue = update_queue
-        self.stop_event = stop_event or threading.Event()
-        self.pause_event = pause_event or threading.Event()
-        self.config = {
-            "evid": "C49300222222",
+        # --- 21.9.1 Configuration ---
+        logger.log("EV: Configuring Whitebeet...")
+        wb.v2gSetMode(0)  # 0 for EV
+
+        ev_config = {
+            "evid": b'\x00\x00\x00\x00\x00\x01',
             "protocol_count": 2,
-            "protocols": [0, 1],
+            "protocols": [0, 1], # DIN and ISO
             "payment_method_count": 1,
-            "payment_method": [0],
+            "payment_method": [0], # EIM
             "energy_transfer_mode_count": 1,
-            "energy_transfer_mode": [0], # DC
-            "battery_capacity": self.battery.getCapacity()
+            "energy_transfer_mode": [1], # DC Extended
+            "battery_capacity": (50, 3) # 50kWh
         }
-        self.charging_params = {}
-        self._update_charging_parameter()
-        self.schedule = None
-        self.current_energy_transfer_mode = -1
-        self.state = "init"
-        self.conn = None
-        self.charge_loop_interval = 2.0 # Default interval in seconds
+        wb.v2gEvSetConfiguration(ev_config)
+        logger.log("EV: V2G configuration set.")
 
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        if self.conn:
-            self.conn.close()
-
-    def load(self, configDict):
-        if "battery" in configDict:
-            for key, value in configDict["battery"].items():
-                if hasattr(self.battery, key):
-                    setattr(self.battery, key, value)
-        if "ev" in configDict:
-            for key, value in configDict["ev"].items():
-                self.config[key] = value
-        self._update_charging_parameter()
-
-    def _update_charging_parameter(self):
-        self.charging_params = {
-            "max_voltage": self.battery.max_voltage,
-            "max_current": self.battery.max_current,
-            "max_power": self.battery.max_power,
-            "soc": self.battery.getSOC(),
-            "target_voltage": self.battery.target_voltage,
-            "target_current": self.battery.target_current,
+        dc_params = {
+            "min_voltage": 0, "min_current": 0, "min_power": 0,
+            "max_voltage": 450, "max_current": 80, "max_power": 30000,
+            "soc": 50, "status": 0, "target_voltage": 400, "target_current": 0,
+            "full_soc": 100, "bulk_soc": 80, "energy_request": (10, 3), # 10kWh
+            "departure_time": 3600
         }
+        wb.v2gSetDCChargingParameters(dc_params)
+        logger.log("EV: DC charging parameters set.")
 
-    def _initialize(self):
-        """Initializes the EV simulation and connects to EVSE."""
-        print("[EV_SIM] Initializing...")
-        self.conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.conn.connect((self.host, self.port))
-        print(f"[EV_SIM] Connected to EVSE at {self.host}:{self.port}")
+        wb.v2gStart()
+        logger.log("EV: V2G service started.")
 
-    def _handle_evse_messages(self):
-        """Handles messages from the EVSE."""
-        charge_loop_count = 0
-        # Start by indicating readiness for V2G
-        send_message(self.conn, 0x1000, {}) # EV ready for V2G
+        # --- 21.9.2 Start Session ---
+        logger.log("EV: Starting session...")
+        wb.v2gStartSession()
 
-        while self.state != "end" and not self.stop_event.is_set():
-            # Handle pause
-            if self.pause_event.is_set():
-                time.sleep(0.5)
+        # --- Main Loop: Wait for EVSE responses ---
+        session_running = True
+        while session_running:
+            sub_id, payload = wb.v2gEvReceiveRequest()
+            if sub_id is None:
+                time.sleep(0.1)
                 continue
 
-            self.conn.settimeout(0.5) # Use a timeout to remain responsive
-            try:
-                msg_id, data = receive_message(self.conn)
+            logger.log(f"EV: Received notification with Sub-ID: {hex(sub_id)}")
 
-                if msg_id is None:
-                    print("[EV_SIM] EVSE disconnected.")
-                    self.state = "end"
-                    break
+            if sub_id == 0xC0: # SessionStarted
+                parsed = wb.v2gEvParseSessionStarted(payload)
+                logger.log(f"EV: Session started with EVSEID: {parsed['evse_id'].decode()}")
 
-                # If we are in the charging state, we need to handle the charge loop
-                if self.state == "charging":
-                    if msg_id == 0x85: # This is the expected response in the charge loop
+            elif sub_id == 0xC4: # CableCheckReady
+                logger.log("EV: Cable check is ready. Starting cable check...")
+                wb.v2gStartCableCheck()
 
-                        # Check if we should stop charging
-                        if charge_loop_count > 3 and self.battery.getSOC() >= 80:
-                            print("[EV_SIM] Target SOC reached. Requesting to stop charging.")
-                            send_message(self.conn, 0x1004, {}) # Request stop charging
-                            self.state = "stopping"
-                            continue
+            elif sub_id == 0xC5: # CableCheckFinished
+                logger.log("EV: Cable check finished by EVSE.")
 
-                        # 1. Handle the new parameters from the EVSE
-                        self._handle_dc_charge_parameters_changed(data)
-                        charge_loop_count += 1
-                        
-                        # 2. Update battery SOC based on the new parameters and elapsed time
-                        self.battery.tickSimulation()
-                        self._update_charging_parameter()
-                        print(f"[EV_SIM] >> Charge Loop {charge_loop_count} | Battery SOC: {self.battery.getSOC()}% <<")
-                        
-                        # Send SOC update to the UI
-                        if self.update_queue:
-                            self.update_queue.put(f"SOC_UPDATE:{self.battery.getSOC()}")
+            elif sub_id == 0xC6: # PreChargingReady
+                logger.log("EV: Pre-charging is ready. Starting pre-charge...")
+                wb.v2gStartPreCharging()
 
-                        # 3. Wait before sending the next update
-                        print(f"[EV_SIM] Waiting for {self.charge_loop_interval} seconds...")
-                        time.sleep(self.charge_loop_interval)
+            elif sub_id == 0xC7: # ChargingReady
+                logger.log("EV: Charging is ready. Starting charge...")
+                wb.v2gStartCharging()
 
-                        # 4. Send the next charge loop update to the EVSE
-                        send_message(self.conn, 0x1005, self.charging_params)
-                        continue # Continue to next loop iteration to wait for the next 0x85 message
+            elif sub_id == 0xC8: # ChargingStarted
+                logger.log("EV: Charging has started. Entering charge loop for 5 seconds...")
+                # --- 21.9.4 Charge Loop ---
+                charge_loop_end = time.time() + 5
+                while time.time() < charge_loop_end:
+                    # In a real scenario, we would send CurrentDemandReq here
+                    # and update our parameters based on EVSE response.
+                    # For this simulation, we just wait.
+                    logger.log("EV: ...charging...")
+                    time.sleep(1)
+                
+                logger.log("EV: Charge loop finished. Stopping charge.")
+                wb.v2gStopCharging(renegotiation=False)
 
-                if msg_id == 0x80: # SessionStarted
-                    self._handle_session_started(data)
-                elif msg_id == 0x82: # AuthorizationStatus
-                    self._handle_authorization_status(data)
-                elif msg_id == 0x84: # Schedules
-                    self._handle_schedules(data)
-                elif msg_id == 0x89: # StartCharging
-                    self._handle_start_charging(data)
-                elif msg_id == 0x8A: # StopCharging
-                    self._handle_stop_charging(data)
-                elif msg_id == 0x8C: # SessionStopped
-                    self._handle_session_stopped(data)
-                else:
-                    print(f"[EV_SIM] Unknown message ID: {hex(msg_id)}")
+            elif sub_id == 0xC9: # ChargingStopped
+                logger.log("EV: Charging stopped by EVSE.")
 
-            except socket.timeout:
-                continue # No message received, loop again
-            except (ConnectionResetError, BrokenPipeError):
-                print("[EV_SIM] Connection lost with EVSE.")
-                self.state = "end"
-                break
+            elif sub_id == 0xCA: # PostChargingReady
+                logger.log("EV: Post-charging is ready. Stopping session.")
+                wb.v2gStopSession()
 
-    def _handle_session_started(self, data):
-        print("[EV_SIM] 'Session Started' received.")
-        time.sleep(2)
-        self.current_energy_transfer_mode = data.get('energy_transfer_mode', -1)
-        if self.current_energy_transfer_mode != -1:
-            self.battery.setEnergyTransferMode(self.current_energy_transfer_mode)
-            print(f"[EV_SIM] Energy transfer mode set to: {self.current_energy_transfer_mode}")
-        else:
-            print("[EV_SIM] Warning: Energy transfer mode not provided by EVSE.")
-        self.state = "session_started"
-        # Request authorization
-        send_message(self.conn, 0x1001, {})
+            elif sub_id == 0xCB: # SessionStopped
+                logger.log("EV: Session stopped successfully.")
+                session_running = False # Exit loop
+                
+            elif sub_id == 0xCD: # SessionError
+                parsed = wb.v2gEvParseSessionError(payload)
+                logger.log(f"EV: Session Error! Code: {parsed['code']}. Stopping.")
+                session_running = False
 
-    def _handle_authorization_status(self, data):
-        if data.get('authorized'):
-            print("[EV_SIM] Authorization granted.")
-            time.sleep(2)
-            self.state = "authorized"
-            # Send charging parameters
-            self._update_charging_parameter()
-            send_message(self.conn, 0x1002, self.charging_params)
-        else:
-            print("[EV_SIM] Authorization denied. Stopping session.")
-            self.state = "end"
-            send_message(self.conn, 0x1006, {}) # Stop session
+    except ConnectionError as e:
+        logger.log(f"EV: Connection Error: {e}")
+    except Warning as w:
+        logger.log(f"EV: Warning: {w}")
+    except KeyboardInterrupt:
+        logger.log("\nEV: Simulation stopped by user.")
+    except Exception as e:
+        logger.log(f"EV: An unexpected error occurred: {e}")
+    finally:
+        logger.log("--- EV Simulation Finished ---")
 
-    def _handle_schedules(self, data):
-        print("[EV_SIM] 'Schedules' received.")
-        time.sleep(2)
-        self.schedule = data
-        self.state = "schedule_received"
-        # Request to start charging
-        send_message(self.conn, 0x1003, {})
-
-    def _handle_start_charging(self, data):
-        print("[EV_SIM] 'Start Charging' confirmed by EVSE.")
-        time.sleep(2)
-        self.battery.startCharging()
-        self.state = "charging"
-        # Send the first charge loop update to kick off the process
-        send_message(self.conn, 0x1005, self.charging_params)
-
-    def _handle_stop_charging(self, data):
-        print("[EV_SIM] 'Stop Charging' confirmed by EVSE.")
-        self.state = "stopped"
-        time.sleep(2)
-        self.battery.is_charging = False
-        send_message(self.conn, 0x1006, {}) # Stop session
-
-    def _handle_dc_charge_parameters_changed(self, data):
-        print("[EV_SIM] Received EVSE charge parameters update.")
-        self.battery.in_voltage = data.get('present_voltage', 0)
-        self.battery.in_current = data.get('present_current', 0)
-
-    def _handle_session_stopped(self, data):
-        print("[EV_SIM] 'Session Stopped' received from EVSE.")
-        self.state = "end"
-
-    def loop(self):
-        """
-        This will handle a complete charging session of the EV simulation.
-        """
-        try:
-            self._initialize()
-            
-            # Simulate SLAC
-            print("[EV_SIM] Simulating SLAC matching...")
-            time.sleep(2)
-            print("[EV_SIM] SLAC matching successful.")
-
-            # Handle V2G communication
-            if not self.stop_event.is_set():
-                self._handle_evse_messages()
-
-        except KeyboardInterrupt:
-            print("\n[EV_SIM] Shutting down.")
-        except Exception as e:
-            print(f"[EV_SIM] An error occurred: {e}")
-        finally:
-            if self.conn:
-                self.conn.close()
-            print("[EV_SIM] EV loop finished.")
+if __name__ == "__main__":
+    main()
