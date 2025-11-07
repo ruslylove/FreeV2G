@@ -18,7 +18,7 @@ def main():
         # The Whitebeet class expects an interface type and name.
         # For the stub, we use 'ETH' and the socket details.
         # The 'mac' parameter is not used by the stub but required by the class constructor.
-        wb = Whitebeet(iftype='ETH', iface=(HOST, EV_PORT), mac='00:00:00:00:00:01')
+        wb = Whitebeet(iftype='SIM', iface=(HOST, EV_PORT), mac='00:00:00:00:00:01')
 
         # --- 21.9.1 Configuration ---
         logger.log("EV: Configuring Whitebeet...")

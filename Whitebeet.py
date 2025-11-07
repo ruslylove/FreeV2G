@@ -1,4 +1,4 @@
-from distutils.command.config import config
+#from distutils.command.config import config
 from encodings import utf_8
 from multiprocessing import Value
 import time
@@ -105,17 +105,22 @@ class Whitebeet():
             if iftype == 'ETH':
                 self.framing.initialize_framing(iftype, iface, mac)
                 log("iface: {}, name: {}, mac: {}".format(iftype, iface, mac))
+            elif iftype == 'SIM':
+                from socket_adapter import SocketAdapter
+                self.framing.sut_adapter = SocketAdapter(iface[0], iface[1])
+                log("iface: {}, name: {}, mac: {}".format(iftype, iface, mac))
             else:
                 self.framing.initialize_framing(iftype, iface, None)
                 log("iface: {}, name: {}".format(iftype, iface))
 
-            self.framing.clear_backlog()
-            self.version = self.systemGetVersion()
-            self.slacStop()
-            self.controlPilotStop()
-            if self.v2gGetMode() == 1:
-                self.v2gEvseStopListen()
-        except:
+            if iftype != 'SIM':
+                self.framing.clear_backlog()
+                self.version = self.systemGetVersion()
+                self.slacStop()
+                self.controlPilotStop()
+                if self.v2gGetMode() == 1:
+                    self.v2gEvseStopListen()
+        except Exception:
             self.connectionError = True
             raise ConnectionError("Failed to initialize the framing interface on \"{}\"".format(self.framing.sut_interface))
 
@@ -149,7 +154,7 @@ class Whitebeet():
             retValue += exponent.to_bytes(1, "big")
         else:
             retValue += value[0].to_bytes(2, "big")
-            retValue += value[1].to_bytes(1, "big")
+            retValue += value[1].to_bytes(1, "big", signed=True)
         
         return retValue
 
@@ -159,6 +164,12 @@ class Whitebeet():
         be repeated until it is accepted to the timeout runs out.
         """
         try:
+            # In simulation mode, we don't expect a direct ACK for every command.
+            # The stub just relays messages. So, we just send and don't wait for a specific response.
+            if self.framing.sut_adapter.__class__.__name__ == 'SocketAdapter':
+                self.framing.build_and_send_frame(mod_id, sub_id, payload)
+                return
+
             time_now = time.time()
             time_start = time_now
             time_end = time_start + 5
@@ -188,6 +199,10 @@ class Whitebeet():
         Sends a message and expects and ACK as response. Additional payload is returned.
         """
         response = self._sendReceive(mod_id, sub_id, payload)
+        # In simulation mode, _sendReceive returns None, so we skip the checks.
+        if self.framing.sut_adapter.__class__.__name__ == 'SocketAdapter':
+            return None
+
         if response.payload_len == 0:
             raise Warning("Module did not accept command with no return code")
         elif response.payload[0] != 0:

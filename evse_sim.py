@@ -18,7 +18,7 @@ def main():
         # The Whitebeet class expects an interface type and name.
         # For the stub, we use 'ETH' and the socket details.
         # The 'mac' parameter is not used by the stub but required by the class constructor.
-        wb = Whitebeet(iftype='ETH', iface=(HOST, EVSE_PORT), mac='00:00:00:00:00:02')
+        wb = Whitebeet(iftype='SIM', iface=(HOST, EVSE_PORT), mac='00:00:00:00:00:02')
 
         # --- 21.8.1 Configuration ---
         logger.log("EVSE: Configuring Whitebeet...")
@@ -51,8 +51,9 @@ def main():
 
         sdp_config = {
             'allow_unsecure': True,
-            'unsecure_port': 15118,
-            'allow_secure': False
+            'unsecure_port': 50000, # with in the range 49152-65535
+            'allow_secure': False,
+            'secure_port': 50001, # with in the range 49152-65535'
         }
         wb.v2gEvseSetSdpConfig(sdp_config)
         logger.log("EVSE: SDP config set.")
