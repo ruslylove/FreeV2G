@@ -278,3 +278,15 @@ $ .venv/bin/python3 application_sim.py -r EV --ev-initial-soc 30
 *   `--evse-max-power <W>`: Set the maximum power the EVSE can provide in Watts.
 *   `--evse-max-current <A>`: Set the maximum current the EVSE can provide in Amperes.
 *   `--evse-max-voltage <V>`: Set the maximum voltage the EVSE can provide in Volts.
+
+#### MEA Project
+
+EVSE
+```console
+sudo .venv/bin/python3 Application.py eth -i enp3s0 -m c4:93:00:48:ac:f0 -r EVSE
+```
+
+EV
+```console
+sudo .venv/bin/python3 Application.py eth -i enx00e09909a99b -m c4:93:00:47:cd:e7 -r EV
+```
