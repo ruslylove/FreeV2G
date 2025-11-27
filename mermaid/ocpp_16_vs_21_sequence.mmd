@@ -1,0 +1,52 @@
+---
+config:
+  look: neo
+  theme: redux
+---
+sequenceDiagram
+    participant EVSE as เครื่องอัดประจุ (EVSE)
+    participant CSMS as ระบบจัดการกลาง (CSMS)
+
+    %% ==========================================
+    %% ส่วนที่ 1: OCPP 1.6 (JSON)
+    %% ==========================================
+    rect rgb(240, 248, 255)
+        Note over EVSE, CSMS: OCPP 1.6 (JSON): เน้นการสั่งงานพื้นฐาน
+        
+        EVSE->>CSMS: BootNotification
+        EVSE->>CSMS: StatusNotification
+        EVSE->>CSMS: Authorize
+        
+        Note over EVSE, CSMS: เริ่มต้นการชาร์จ
+        EVSE->>CSMS: StartTransaction
+        
+        loop ระหว่างชาร์จ
+            EVSE->>CSMS: MeterValues
+            Note right of EVSE: ⚠️ ข้อจำกัด V2G:<br/>ไม่รองรับข้อมูล Discharge (ค่าติดลบ) อย่างเป็นทางการ<br/>ต้องใช้ DataTransfer หรือ Custom Keys
+        end
+        
+        Note over EVSE, CSMS: สิ้นสุดการชาร์จ
+        EVSE->>CSMS: StopTransaction
+    end
+
+    %% ==========================================
+    %% ส่วนที่ 2: OCPP 2.0.1 / 2.1
+    %% ==========================================
+    rect rgb(230, 255, 230)
+        Note over EVSE, CSMS: OCPP 2.0.1 / 2.1: ออกแบบเพื่อ V2G & Smart Charging
+        
+        EVSE->>CSMS: BootNotification
+        EVSE->>CSMS: StatusNotification
+        EVSE->>CSMS: Authorize
+        
+        Note over EVSE, CSMS: เริ่มต้น Transaction (รวม Start/Stop ไว้ใน Event เดียว)
+        EVSE->>CSMS: TransactionEvent (Started)
+        
+        loop ระหว่างชาร์จ/จ่ายไฟ (V2G)
+            EVSE->>CSMS: TransactionEvent (Updated)
+            Note right of EVSE: ✅ จุดเด่น V2G (OCPP 2.1):<br/>มี Functional Block สำหรับ BPT โดยเฉพาะ<br/>รองรับการส่งค่ากระแสติดลบ (Discharge) ได้ถูกต้อง
+        end
+        
+        Note over EVSE, CSMS: สิ้นสุด Transaction
+        EVSE->>CSMS: TransactionEvent (Ended)
+    end

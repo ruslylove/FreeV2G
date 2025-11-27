@@ -1,0 +1,37 @@
+---
+config:
+  layout: elk
+  look: neo
+  theme: redux
+---
+flowchart TB
+ subgraph subGraph0["Charging Interface (Front-End)"]
+        CCS["หัวชาร์จ CCS2"]
+        CHA["หัวชาร์จ CHAdeMO"]
+  end
+ subgraph subGraph1["Control & Communication Unit"]
+        WB["White Beet ISO 15118 Module"]
+        BB["BeagleBone Black Industrial<br>(Main Controller)"]
+        CAN_T["CAN Transceiver<br>(Comms Cape)"]
+  end
+ subgraph subGraph2["Power Stage"]
+        PM["Power Module<br>(Bi-directional AC/DC)"]
+  end
+    CCS <-- CP (PLC/PWM), PP --> WB
+    WB <-- Ethernet / SPI (HCI API) --> BB
+    CHA <-- CAN High/Low --> CAN_T
+    CAN_T <-- CAN Bus --> BB
+    CHA <-- Analog Signals (SS1, SS2, DCP) --> BB
+    BB <-- CAN Bus (Control Commands) --> PM
+    PM == "DC Power (Bi-directional)" ==> CCS & CHA
+    BB <-. OCPP .-> CSMS
+
+     CCS:::interface
+     CHA:::interface
+     WB:::controller
+     BB:::controller
+     CAN_T:::controller
+     PM:::power
+    classDef controller fill:#f9f,stroke:#333,stroke-width:2px
+    classDef power fill:#ff9,stroke:#f66,stroke-width:2px
+    classDef interface fill:#9cf,stroke:#333,stroke-width:2px

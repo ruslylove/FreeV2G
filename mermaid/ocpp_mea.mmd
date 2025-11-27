@@ -1,0 +1,63 @@
+---
+config:
+  theme: redux
+---
+sequenceDiagram
+    participant EV as ยานยนต์ไฟฟ้า (EV)
+    participant EVSE as เครื่องต้นแบบ MEA (EVSE)
+    participant CSMS as ระบบจัดการกลาง (CSMS)
+
+    %% ------------------------------------------
+    %% 1. Initialization
+    %% ------------------------------------------
+    rect rgb(235, 245, 255)
+        Note over EVSE, CSMS: 1. Initialization (การเริ่มต้นระบบ)
+        EVSE->>CSMS: WebSocket Secure (WSS) Connect
+        EVSE->>CSMS: BootNotification (Request)
+        CSMS-->>EVSE: BootNotification (Accepted)
+    end
+
+    %% ------------------------------------------
+    %% 2. EV Connection
+    %% ------------------------------------------
+    rect rgb(255, 250, 230)
+        Note over EV, EVSE: 2. EV Connection (เชื่อมต่อยานยนต์)
+        EV->>EVSE: เสียบสายชาร์จ
+        Note right of EV: ISO 15118 Communication
+        EVSE->>EV: อ่านค่า SOC และขีดจำกัด (Limits)
+        EVSE->>CSMS: StatusNotification (Status: Occupied)
+    end
+
+    %% ------------------------------------------
+    %% 3. V2G Session Start
+    %% ------------------------------------------
+    rect rgb(230, 255, 230)
+        Note over EVSE, CSMS: 3. V2G Session Start (เริ่มการจ่ายไฟคืน)
+        CSMS->>EVSE: RequestStartTransaction<br/>(ChargingProfile: Discharge/Negative)
+        Note right of EVSE: ตรวจสอบ Profile และสั่ง Power Module ทำงาน
+        EVSE->>CSMS: TransactionEvent (eventType: Started)
+    end
+
+    %% ------------------------------------------
+    %% 4. Energy Transfer (V2G Mode)
+    %% ------------------------------------------
+    rect rgb(255, 235, 235)
+        Note over EV, CSMS: 4. Energy Transfer (โหมด V2G)
+        loop ทุกๆ 1 นาที (หรือตาม Config)
+            EVSE->>EV: ควบคุมการดึงไฟ (Discharge) ตาม Setpoint
+            EV->>EVSE: จ่ายพลังงาน DC
+            Note right of EVSE: อ่านค่ามิเตอร์ (V, I, P)<br/>Power เป็นค่าติดลบ (-)
+            EVSE->>CSMS: TransactionEvent (eventType: Updated)<br/>[MeterValues: Negative Power]
+        end
+    end
+
+    %% ------------------------------------------
+    %% 5. Termination
+    %% ------------------------------------------
+    rect rgb(240, 240, 240)
+        Note over EV, CSMS: 5. Termination (สิ้นสุดการทำงาน)
+        Note right of EVSE: เงื่อนไข: ครบกำหนดเวลา หรือ SOC ต่ำกว่าเกณฑ์
+        EVSE->>EV: หยุดการดึงไฟ
+        EVSE->>CSMS: TransactionEvent (eventType: Ended)
+        CSMS-->>EVSE: TransactionEventResponse
+    end
